@@ -157,6 +157,85 @@ small {
     animation: pulseRed 2s infinite;
 }
 
+.btn-small {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8rem;
+    width: fit-content;
+}
+
+.btn.secondary {
+    background-color: transparent;
+    border: 1px dashed var(--border);
+    color: var(--text-muted);
+}
+
+.btn.secondary:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+#equations-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.equation-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: var(--bg-dark);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0 0.5rem;
+    transition: border-color 0.2s;
+}
+
+.equation-row:focus-within {
+    border-color: var(--primary);
+}
+
+.equation-row .color-indicator {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-right: 0.5rem;
+}
+
+.equation-row span {
+    color: var(--text-muted);
+    font-family: monospace;
+}
+
+.equation-row input {
+    background: transparent;
+    border: none;
+    color: var(--text-main);
+    padding: 0.75rem 0.5rem;
+    font-family: monospace;
+    font-size: 0.95rem;
+    outline: none;
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.btn-remove {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+.btn-remove:hover {
+    color: var(--danger);
+    background: rgba(239, 68, 68, 0.1);
+}
+
 .divider {
     height: 1px;
     background-color: var(--border);

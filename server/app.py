@@ -17,20 +17,18 @@ ESP32_PORT = 12345
 CUBE_SIZE = 16
 
 class PlotConfig(BaseModel):
-    equation: str
+    equations: list[str]
     esp32_ip: str
 
 # Global state
 current_voxels = np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 3), dtype=np.uint8)
-current_equation = "sin(sqrt(x**2 + y**2))"
+current_equations = ["sin(sqrt(x**2 + y**2) - t * 2)"]
 stream_to_hardware = False
 t = 0.0
 
-def calculate_plot(equations_str: str, current_t: float):
+def calculate_plot(equations: list[str], current_t: float):
     """
-    Evaluates one or multiple comma-separated mathematical equations.
-    e.g. "sin(x) + cos(y) - t", "cos(x*y) + t"
-    Returns a 16x16x16 RGB array containing overlayed plots.
+    Evaluates one or multiple mathematical equations.
     """
     voxels = np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 3), dtype=np.uint8)
     
@@ -48,9 +46,6 @@ def calculate_plot(equations_str: str, current_t: float):
     
     allowed_names["x"] = X
     allowed_names["y"] = Y
-    
-    # Split by comma
-    equations = [eq.strip() for eq in equations_str.split(',') if eq.strip()]
     
     colors = [
         (255, 60, 60),   # Red-ish
@@ -116,9 +111,9 @@ def send_frame_to_esp32(voxels: np.ndarray, ip: str, port: int):
 
 @app.post("/api/update_plot")
 async def update_plot(config: PlotConfig):
-    global current_equation, ESP32_IP, t
+    global current_equations, ESP32_IP, t
     ESP32_IP = config.esp32_ip
-    current_equation = config.equation
+    current_equations = config.equations
     t = 0.0
     return {"status": "success", "message": "Plot updated"}
 
@@ -142,11 +137,11 @@ async def websocket_endpoint(websocket: WebSocket):
 
 # Background task for rendering animations and UDP streaming
 async def stream_task():
-    global current_voxels, t, current_equation
+    global current_voxels, t, current_equations
     while True:
         # Step forward in time and generate the new 3D frame
         t += 0.05
-        current_voxels = calculate_plot(current_equation, t)
+        current_voxels = calculate_plot(current_equations, t)
         
         if stream_to_hardware:
             send_frame_to_esp32(current_voxels, ESP32_IP, ESP32_PORT)

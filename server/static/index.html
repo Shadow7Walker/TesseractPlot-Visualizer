@@ -18,12 +18,14 @@
             </header>
 
             <div class="control-group">
-                <label for="equation">Mathematical Function(s)</label>
-                <div class="input-wrapper">
-                    <span>z = </span>
-                    <input type="text" id="equation" value="sin(sqrt(x**2 + y**2) - t * 2), cos(x + t)" placeholder="e.g. sin(x - t), cos(y)">
+                <label>Mathematical Functions</label>
+                <div id="equations-container">
+                    <!-- Equation rows will be injected here by JS -->
                 </div>
-                <small>Separate multiple fields with commas. Valid: x, y, t, sin, cos, sqrt, pi</small>
+                <button id="btn-add-eq" class="btn secondary btn-small">
+                    + Add Equation
+                </button>
+                <small>Valid variables: x, y, t, sin, cos, sqrt, pi</small>
             </div>
 
             <div class="control-group">

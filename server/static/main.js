@@ -167,19 +167,60 @@ const updateVoxels = (flatArray) => {
 // API Interactions
 const btnUpdate = document.getElementById('btn-update');
 const btnStream = document.getElementById('btn-stream');
-const eqInput = document.getElementById('equation');
 const ipInput = document.getElementById('esp_ip');
 let isStreaming = false;
 
+// Manage dynamic equation fields
+const container = document.getElementById('equations-container');
+const btnAddEq = document.getElementById('btn-add-eq');
+const eqColors = ['#ff3c3c', '#3cff3c', '#3c3cff', '#ffff3c', '#ff3cff'];
+let eqCount = 0;
+
+const addEquationRow = (defaultValue = "") => {
+    const row = document.createElement('div');
+    row.className = 'equation-row';
+    const color = eqColors[eqCount % eqColors.length];
+    
+    row.innerHTML = `
+        <div class="color-indicator" style="background-color: ${color}; box-shadow: 0 0 5px ${color};"></div>
+        <span>z = </span>
+        <input type="text" class="eq-input" value="${defaultValue}" placeholder="e.g. sin(x - t)">
+        <button class="btn-remove" title="Remove Field">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+    `;
+    
+    // Remove button logic
+    row.querySelector('.btn-remove').addEventListener('click', () => {
+        if (container.children.length > 1) {
+            row.remove();
+        }
+    });
+    
+    container.appendChild(row);
+    eqCount++;
+};
+
+// Initial default rows
+addEquationRow("sin(sqrt(x**2 + y**2) - t * 2)");
+addEquationRow("cos(x + t)");
+
+btnAddEq.addEventListener('click', () => {
+    addEquationRow();
+});
+
 btnUpdate.addEventListener('click', async () => {
-    const eq = eqInput.value;
+    // Collect all inputs
+    const inputs = document.querySelectorAll('.eq-input');
+    const eqArray = Array.from(inputs).map(input => input.value).filter(val => val.trim() !== "");
+    
     const ip = ipInput.value;
     
     try {
         await fetch('/api/update_plot', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ equation: eq, esp32_ip: ip })
+            body: JSON.stringify({ equations: eqArray, esp32_ip: ip })
         });
         cubeGroup.rotation.y = 0; // Reset rotation so user can see front view
     } catch (e) {
