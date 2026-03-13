@@ -22,12 +22,15 @@ class PlotConfig(BaseModel):
 
 # Global state
 current_voxels = np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 3), dtype=np.uint8)
+current_equation = "sin(sqrt(x**2 + y**2))"
 stream_to_hardware = False
+t = 0.0
 
-def calculate_plot(equation: str):
+def calculate_plot(equations_str: str, current_t: float):
     """
-    Evaluates a mathematical equation like z = sin(x) + cos(y)
-    Returns a 16x16x16 RGB array.
+    Evaluates one or multiple comma-separated mathematical equations.
+    e.g. "sin(x) + cos(y) - t", "cos(x*y) + t"
+    Returns a 16x16x16 RGB array containing overlayed plots.
     """
     voxels = np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 3), dtype=np.uint8)
     
@@ -35,44 +38,57 @@ def calculate_plot(equation: str):
     allowed_names = {
         "x": None, "y": None, 
         "sin": np.sin, "cos": np.cos, "tan": np.tan, "sqrt": np.sqrt,
-        "exp": np.exp, "abs": np.abs, "pi": np.pi, "e": np.e
+        "exp": np.exp, "abs": np.abs, "pi": np.pi, "e": np.e, "t": current_t
     }
     
-    try:
-        # Scale x, y from -pi to pi for nicer plots
-        x = np.linspace(-np.pi, np.pi, CUBE_SIZE)
-        y = np.linspace(-np.pi, np.pi, CUBE_SIZE)
-        X, Y = np.meshgrid(x, y)
-        
-        allowed_names["x"] = X
-        allowed_names["y"] = Y
-        
-        # Evaluate Z
-        Z = eval(equation, {"__builtins__": {}}, allowed_names)
-        
-        # Normalize Z to 0-15
-        if np.max(Z) != np.min(Z):
-            Z_norm = (Z - np.min(Z)) / (np.max(Z) - np.min(Z)) * (CUBE_SIZE - 1)
-        else:
-            Z_norm = np.zeros_like(Z) + CUBE_SIZE // 2
+    # Scale x, y from -pi to pi
+    x = np.linspace(-np.pi, np.pi, CUBE_SIZE)
+    y = np.linspace(-np.pi, np.pi, CUBE_SIZE)
+    X, Y = np.meshgrid(x, y)
+    
+    allowed_names["x"] = X
+    allowed_names["y"] = Y
+    
+    # Split by comma
+    equations = [eq.strip() for eq in equations_str.split(',') if eq.strip()]
+    
+    colors = [
+        (255, 60, 60),   # Red-ish
+        (60, 255, 60),   # Green-ish
+        (60, 60, 255),   # Blue-ish
+        (255, 255, 60),  # Yellow
+        (255, 60, 255)   # Magenta
+    ]
+    
+    for idx, eq in enumerate(equations):
+        try:
+            # Evaluate Z
+            Z = eval(eq, {"__builtins__": {}}, allowed_names)
             
-        Z_indices = np.round(Z_norm).astype(int)
-        
-        # Fill voxels (Simple gradient coloring based on Z height)
-        for i in range(CUBE_SIZE):
-            for j in range(CUBE_SIZE):
-                z_idx = Z_indices[i, j]
-                if 0 <= z_idx < CUBE_SIZE:
-                    # R, G, B based on coordinate position for a cool effect
-                    r = int((i / 15.0) * 255)
-                    g = int((j / 15.0) * 255)
-                    b = int((z_idx / 15.0) * 255)
-                    voxels[i, j, z_idx] = [r, g, b]
-                    
-        return voxels
-    except Exception as e:
-        print(f"Error evaluating equation: {e}")
-        return np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 3), dtype=np.uint8)
+            # Normalize Z to 0-15
+            if np.max(Z) != np.min(Z):
+                Z_norm = (Z - np.min(Z)) / (np.max(Z) - np.min(Z)) * (CUBE_SIZE - 1)
+            else:
+                Z_norm = np.zeros_like(Z) + CUBE_SIZE // 2
+                
+            Z_indices = np.round(Z_norm).astype(int)
+            base_color = colors[idx % len(colors)]
+            
+            # Fill voxels 
+            for i in range(CUBE_SIZE):
+                for j in range(CUBE_SIZE):
+                    z_idx = Z_indices[i, j]
+                    if 0 <= z_idx < CUBE_SIZE:
+                        # Adding depth shading to base color
+                        r = int(base_color[0] * (0.4 + 0.6 * (z_idx / 15.0)))
+                        g = int(base_color[1] * (0.4 + 0.6 * (z_idx / 15.0)))
+                        b = int(base_color[2] * (0.4 + 0.6 * (z_idx / 15.0)))
+                        voxels[i, j, z_idx] = [r, g, b]
+                        
+        except Exception as e:
+            print(f"Error evaluating equation '{eq}': {e}")
+            
+    return voxels
 
 def send_frame_to_esp32(voxels: np.ndarray, ip: str, port: int):
     """
@@ -100,9 +116,10 @@ def send_frame_to_esp32(voxels: np.ndarray, ip: str, port: int):
 
 @app.post("/api/update_plot")
 async def update_plot(config: PlotConfig):
-    global current_voxels, ESP32_IP
+    global current_equation, ESP32_IP, t
     ESP32_IP = config.esp32_ip
-    current_voxels = calculate_plot(config.equation)
+    current_equation = config.equation
+    t = 0.0
     return {"status": "success", "message": "Plot updated"}
 
 @app.post("/api/toggle_stream")
@@ -123,15 +140,19 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         print(f"WebSocket Client disconnected: {e}")
 
-# Background task for UDP streaming to avoid blocking the API
+# Background task for rendering animations and UDP streaming
 async def stream_task():
+    global current_voxels, t, current_equation
     while True:
+        # Step forward in time and generate the new 3D frame
+        t += 0.05
+        current_voxels = calculate_plot(current_equation, t)
+        
         if stream_to_hardware:
             send_frame_to_esp32(current_voxels, ESP32_IP, ESP32_PORT)
-            # Send at roughly ~30fps 
-            await asyncio.sleep(1/30.0)
-        else:
-            await asyncio.sleep(0.1)
+            
+        # Run rendering loop at roughly ~30fps 
+        await asyncio.sleep(1/30.0)
 
 @app.on_event("startup")
 async def startup_event():
