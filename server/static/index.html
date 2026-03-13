@@ -29,6 +29,18 @@
             </div>
 
             <div class="control-group">
+                <label>Playback Controls (Time 't')</label>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button id="btn-play-pause" class="btn secondary btn-small" style="min-width: 80px;">Pause</button>
+                    <input type="range" id="t-scrubber" min="0" max="100" step="0.1" value="0" style="flex-grow: 1;">
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.25rem;">
+                    <small>Speed: <span id="speed-label">1.0</span>x</small>
+                    <input type="range" id="speed-slider" min="-3" max="5" step="0.1" value="1.0" style="width: 100px;">
+                </div>
+            </div>
+
+            <div class="control-group">
                 <label for="esp_ip">Hardware IP Address</label>
                 <input type="text" id="esp_ip" value="192.168.1.100" placeholder="192.168.1.100">
             </div>

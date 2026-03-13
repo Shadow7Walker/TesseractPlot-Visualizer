@@ -209,6 +209,63 @@ btnAddEq.addEventListener('click', () => {
     addEquationRow();
 });
 
+// Playback Controls
+const btnPlayPause = document.getElementById('btn-play-pause');
+const tScrubber = document.getElementById('t-scrubber');
+const speedSlider = document.getElementById('speed-slider');
+const speedLabel = document.getElementById('speed-label');
+let isPlaying = true;
+let isScrubbing = false;
+
+// Sync time from backend occasionally
+setInterval(async () => {
+    if (!isScrubbing && isPlaying) {
+        try {
+            const res = await fetch('/api/update_time', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}) // Just fetch current state
+            });
+            const data = await res.json();
+            tScrubber.value = data.t % 100; // Loop scrubber visually 0-100
+        } catch(e) {}
+    }
+}, 500);
+
+btnPlayPause.addEventListener('click', async () => {
+    isPlaying = !isPlaying;
+    btnPlayPause.innerText = isPlaying ? "Pause" : "Play";
+    btnPlayPause.classList.toggle('primary', !isPlaying);
+    btnPlayPause.classList.toggle('secondary', isPlaying);
+    
+    await fetch('/api/update_time', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_playing: isPlaying })
+    });
+});
+
+tScrubber.addEventListener('mousedown', () => isScrubbing = true);
+tScrubber.addEventListener('mouseup', () => isScrubbing = false);
+tScrubber.addEventListener('input', async (e) => {
+    const newT = parseFloat(e.target.value);
+    await fetch('/api/update_time', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ t_val: newT })
+    });
+});
+
+speedSlider.addEventListener('input', async (e) => {
+    const speed = parseFloat(e.target.value);
+    speedLabel.innerText = speed.toFixed(1);
+    await fetch('/api/update_time', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playback_speed: speed })
+    });
+});
+
 btnUpdate.addEventListener('click', async () => {
     // Collect all inputs
     const inputs = document.querySelectorAll('.eq-input');

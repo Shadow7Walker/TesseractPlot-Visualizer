@@ -25,6 +25,13 @@ current_voxels = np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 3), dtype=np.uint8)
 current_equations = ["sin(sqrt(x**2 + y**2) - t * 2)"]
 stream_to_hardware = False
 t = 0.0
+is_playing = True
+playback_speed = 1.0
+
+class TimeConfig(BaseModel):
+    t_val: float = None
+    is_playing: bool = None
+    playback_speed: float = None
 
 def calculate_plot(equations: list[str], current_t: float):
     """
@@ -114,8 +121,18 @@ async def update_plot(config: PlotConfig):
     global current_equations, ESP32_IP, t
     ESP32_IP = config.esp32_ip
     current_equations = config.equations
-    t = 0.0
     return {"status": "success", "message": "Plot updated"}
+
+@app.post("/api/update_time")
+async def update_time(config: TimeConfig):
+    global t, is_playing, playback_speed
+    if config.t_val is not None:
+        t = config.t_val
+    if config.is_playing is not None:
+        is_playing = config.is_playing
+    if config.playback_speed is not None:
+        playback_speed = config.playback_speed
+    return {"status": "success", "t": t, "is_playing": is_playing, "speed": playback_speed}
 
 @app.post("/api/toggle_stream")
 async def toggle_stream(data: dict):
@@ -139,8 +156,9 @@ async def websocket_endpoint(websocket: WebSocket):
 async def stream_task():
     global current_voxels, t, current_equations
     while True:
-        # Step forward in time and generate the new 3D frame
-        t += 0.05
+        if is_playing:
+            t += (0.05 * playback_speed)
+            
         current_voxels = calculate_plot(current_equations, t)
         
         if stream_to_hardware:
