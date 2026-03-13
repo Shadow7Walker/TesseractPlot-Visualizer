@@ -77,22 +77,26 @@ def calculate_plot(equation: str):
 def send_frame_to_esp32(voxels: np.ndarray, ip: str, port: int):
     """
     Sends the 16x16x16 voxel array to the ESP32 via UDP.
-    Splits the data into 16 packets (one per Z-layer) as per our C++ struct:
-    struct { uint8_t layerIndex; uint8_t rgbData[768]; }
+    Splits the data into 16 packets. To match physical vertical tubes, 
+    each packet contains one X-plane (16 tubes of 16 LEDs).
+    We assume the 16 tubes on a single ESP32 pin are wired in a Z-axis zig-zag.
     """
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     
-    for z in range(CUBE_SIZE):
-        layer_data = bytearray()
-        layer_data.append(z) # layer index
+    for x in range(CUBE_SIZE):
+        packet_data = bytearray()
+        packet_data.append(x) # chunk index (0 to 15), sent to a single ESP32 pin
         
-        # Flatten the 16x16 plane for this layer
         for y in range(CUBE_SIZE):
-            for x in range(CUBE_SIZE):
+            # Zig-zag wiring on the Z axis:
+            # Even Y rows go bottom-to-top (0 to 15), odd Y rows go top-to-bottom (15 to 0)
+            z_range = range(CUBE_SIZE) if y % 2 == 0 else range(CUBE_SIZE - 1, -1, -1)
+            
+            for z in z_range:
                 voxel = voxels[x, y, z]
-                layer_data.extend(voxel)
+                packet_data.extend(voxel)
                 
-        sock.sendto(layer_data, (ip, port))
+        sock.sendto(packet_data, (ip, port))
 
 @app.post("/api/update_plot")
 async def update_plot(config: PlotConfig):

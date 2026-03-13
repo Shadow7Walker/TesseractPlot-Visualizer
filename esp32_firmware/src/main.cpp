@@ -29,9 +29,9 @@ CRGB leds[TOTAL_LEDS];
 // 16x16x16 = 4096 voxels. If we send 3 bytes (RGB) per voxel, that's 12288 bytes.
 // This is larger than a standard UDP packet MTU (mostly ~1500 bytes).
 // Therefore, we will receive data in chunks. 
-// Standard strategy: send 16 packets, each containing one 16x16 layer (256 RGB values = 768 bytes).
-struct UpdatePacket {
-    uint8_t layerIndex; // 0 to 15
+// We send 16 packets, each containing one X-plane of 16 tubes (256 RGB values = 768 bytes).
+struct __attribute__((packed)) UpdatePacket {
+    uint8_t chunkIndex; // 0 to 15 (Mapping to a specific pin)
     uint8_t rgbData[768]; // 256 LEDs * 3 colors
 };
 
@@ -95,12 +95,11 @@ void loop() {
         int len = udp.read((char*)&packet, sizeof(UpdatePacket));
         
         if (len == sizeof(UpdatePacket)) {
-            // Valid layer received
-            if (packet.layerIndex < 16) {
-                // Determine the starting index in the LED array for this layer.
-                // Depending on the exact wiring snake pattern, this math might need tuning.
-                // Assuming a straight mapping for now where each "layer" is one pin of 256 LEDs.
-                int startIndex = packet.layerIndex * NUM_LEDS_PER_PIN;
+            // Valid chunk received
+            if (packet.chunkIndex < 16) {
+                // Determine the starting index in the LED array for this chunk.
+                // Each chunk perfectly maps to one of the 16 output pins.
+                int startIndex = packet.chunkIndex * NUM_LEDS_PER_PIN;
                 
                 for(int i = 0; i < NUM_LEDS_PER_PIN; i++) {
                     leds[startIndex + i] = CRGB(
@@ -110,8 +109,8 @@ void loop() {
                     );
                 }
                 
-                // Mark layer as received using bitwise OR
-                layersReceivedMask |= (1 << packet.layerIndex);
+                // Mark chunk as received using bitwise OR
+                layersReceivedMask |= (1 << packet.chunkIndex);
 
                 // If we got all 16 layers (mask = 1111111111111111 in binary = 0xFFFF), show frame
                 if (layersReceivedMask == 0xFFFF) {
