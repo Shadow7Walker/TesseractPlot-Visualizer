@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Plot Visualizer Studio</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Controls -->
+        <aside class="sidebar">
+            <header>
+                <h1>HoloPlot Studio <span class="badge">PRO</span></h1>
+                <p>16x16x16 LED Voxel Controller</p>
+            </header>
+
+            <div class="control-group">
+                <label for="equation">Mathematical Function</label>
+                <div class="input-wrapper">
+                    <span>z = </span>
+                    <input type="text" id="equation" value="sin(sqrt(x**2 + y**2))" placeholder="e.g. sin(x) + cos(y)">
+                </div>
+                <small>Available variables: x, y, sin, cos, sqrt, pi</small>
+            </div>
+
+            <div class="control-group">
+                <label for="esp_ip">Hardware IP Address</label>
+                <input type="text" id="esp_ip" value="192.168.1.100" placeholder="192.168.1.100">
+            </div>
+
+            <button id="btn-update" class="btn primary">Render 3D Preview</button>
+            <div class="divider"></div>
+            
+            <div class="hardware-status">
+                <div class="status-indicator" id="hardware-status-dot"></div>
+                <span>Hardware Disconnected</span>
+            </div>
+            
+            <button id="btn-stream" class="btn danger">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                Stream to Hardware
+            </button>
+        </aside>
+
+        <!-- 3D Canvas Area -->
+        <main class="canvas-container">
+            <div id="three-canvas"></div>
+            
+            <!-- Statistics Overlay -->
+            <div class="stats-overlay">
+                <div class="stat-box">
+                    <span class="stat-label">FPS</span>
+                    <span class="stat-value" id="fps-counter">60</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">Active Voxels</span>
+                    <span class="stat-value" id="voxel-counter">256</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">Power Est.</span>
+                    <span class="stat-value" id="power-counter">~15A</span>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="/static/main.js"></script>
+</body>
+</html>

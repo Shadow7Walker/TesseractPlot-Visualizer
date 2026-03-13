@@ -1,0 +1,11 @@
+I have to design a project where I have to visualize 3d plots on a physical pseudo-holographic setup
+
+setup: We have a 3d 16X16X16cm cube with a 1mm thickness.
+inside the cube we have transparent tubes at integer positions and inside the tubes we have rgb led strips
+we intend to connect those strips to a esp32 and control their lighting to create a pseudo-holographic effect to visualize 3d plots
+
+we have to design a software to visualize 3d plots on this setup
+we need code for esp32 to control the led strips
+we also need to design a ui interface to control the 3d plots
+
+we also intend to connect to esp32 via wifi
