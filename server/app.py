@@ -4,7 +4,6 @@ from pydantic import BaseModel
 import numpy as np
 import socket
 import asyncio
-import json
 from contextlib import asynccontextmanager
 
 @asynccontextmanager
@@ -223,7 +222,7 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             # Send current voxel state to UI at ~30fps
             flat_voxels = current_voxels.flatten().tolist()
-            await websocket.send_text(json.dumps({"voxels": flat_voxels}))
+            await websocket.send_json({"voxels": flat_voxels})
             await asyncio.sleep(1/30.0)
     except Exception as e:
         print(f"WebSocket Client disconnected: {e}")
