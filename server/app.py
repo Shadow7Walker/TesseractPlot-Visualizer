@@ -5,8 +5,17 @@ import numpy as np
 import socket
 import asyncio
 import json
+from contextlib import asynccontextmanager
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Create the streaming task
+    task = asyncio.create_task(stream_task())
+    yield
+    # Shutdown: Cancel the task
+    task.cancel()
+
+app = FastAPI(lifespan=lifespan)
 
 # Mount the static directory for the Web UI
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -233,7 +242,3 @@ async def stream_task():
             
         # Run rendering loop at roughly ~30fps 
         await asyncio.sleep(1/30.0)
-
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(stream_task())
