@@ -18,11 +18,13 @@ CUBE_SIZE = 16
 
 class PlotConfig(BaseModel):
     equations: list[str]
+    colors: list[str]
     esp32_ip: str
 
 # Global state
 current_voxels = np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 3), dtype=np.uint8)
 current_equations = ["z = 4 * sin(sqrt(x**2 + y**2) - t * 2)"]
+current_colors = ["#ff3c3c"]
 stream_to_hardware = False
 t = 0.0
 is_playing = True
@@ -33,7 +35,7 @@ class TimeConfig(BaseModel):
     is_playing: bool = None
     playback_speed: float = None
 
-def calculate_plot(equations: list[str], current_t: float):
+def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float):
     """
     Evaluates one or multiple mathematical equations.
     Supports explicit z=, y=, x= definitions, as well as implicit inequalities.
@@ -55,14 +57,13 @@ def calculate_plot(equations: list[str], current_t: float):
     # 2D Grid
     X_2d, Y_2d = np.meshgrid(ls, ls, indexing='ij')
     
-    colors = [
-        (255, 60, 60),   # Red-ish
-        (60, 255, 60),   # Green-ish
-        (60, 60, 255),   # Blue-ish
-        (255, 255, 60),  # Yellow
-        (255, 60, 255)   # Magenta
-    ]
-    
+    parsed_colors = []
+    for hex_c in hex_colors:
+        h = hex_c.lstrip('#')
+        # fallback to red if parsing fails
+        if len(h) != 6: parsed_colors.append((255, 60, 60))
+        else: parsed_colors.append(tuple(int(h[i:i+2], 16) for i in (0, 2, 4)))
+        
     def clean_eq(e):
         return e.replace('^', '**')
 
@@ -142,7 +143,7 @@ def calculate_plot(equations: list[str], current_t: float):
                             mask[i, j, z_idx[i, j]] = True
 
             # Apply colors based on mask
-            base_color = colors[idx % len(colors)]
+            base_color = parsed_colors[idx % len(parsed_colors)] if parsed_colors else (255, 255, 255)
             for i in range(CUBE_SIZE):
                 for j in range(CUBE_SIZE):
                     for k in range(CUBE_SIZE):
@@ -183,9 +184,10 @@ def send_frame_to_esp32(voxels: np.ndarray, ip: str, port: int):
 
 @app.post("/api/update_plot")
 async def update_plot(config: PlotConfig):
-    global current_equations, ESP32_IP, t
+    global current_equations, current_colors, ESP32_IP, t
     ESP32_IP = config.esp32_ip
     current_equations = config.equations
+    current_colors = config.colors
     return {"status": "success", "message": "Plot updated"}
 
 @app.post("/api/update_time")
@@ -219,12 +221,12 @@ async def websocket_endpoint(websocket: WebSocket):
 
 # Background task for rendering animations and UDP streaming
 async def stream_task():
-    global current_voxels, t, current_equations
+    global current_voxels, t, current_equations, current_colors
     while True:
         if is_playing:
             t += (0.05 * playback_speed)
             
-        current_voxels = calculate_plot(current_equations, t)
+        current_voxels = calculate_plot(current_equations, current_colors, t)
         
         if stream_to_hardware:
             send_frame_to_esp32(current_voxels, ESP32_IP, ESP32_PORT)

@@ -182,7 +182,7 @@ const addEquationRow = (defaultValue = "") => {
     const color = eqColors[eqCount % eqColors.length];
     
     row.innerHTML = `
-        <div class="color-indicator" style="background-color: ${color}; box-shadow: 0 0 5px ${color};"></div>
+        <input type="color" class="eq-color" value="${color}" style="border: none; width: 24px; height: 28px; padding: 0; background: none; cursor: pointer; border-radius: 4px; margin-right: 0.5rem;" title="Change Graph Color">
         <input type="text" class="eq-input" value="${defaultValue}" placeholder="e.g. z = sin(x) or x**2+y**2 < 16">
         <button class="btn-remove" title="Remove Field">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -266,9 +266,18 @@ speedSlider.addEventListener('input', async (e) => {
 });
 
 btnUpdate.addEventListener('click', async () => {
-    // Collect all inputs
-    const inputs = document.querySelectorAll('.eq-input');
-    const eqArray = Array.from(inputs).map(input => input.value).filter(val => val.trim() !== "");
+    // Collect all inputs and colors
+    const rows = document.querySelectorAll('.equation-row');
+    const eqArray = [];
+    const colorArray = [];
+    
+    rows.forEach(row => {
+        const inputVal = row.querySelector('.eq-input').value;
+        if (inputVal.trim() !== "") {
+            eqArray.push(inputVal);
+            colorArray.push(row.querySelector('.eq-color').value);
+        }
+    });
     
     const ip = ipInput.value;
     
@@ -276,7 +285,7 @@ btnUpdate.addEventListener('click', async () => {
         await fetch('/api/update_plot', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ equations: eqArray, esp32_ip: ip })
+            body: JSON.stringify({ equations: eqArray, colors: colorArray, esp32_ip: ip })
         });
         cubeGroup.rotation.y = 0; // Reset rotation so user can see front view
     } catch (e) {
