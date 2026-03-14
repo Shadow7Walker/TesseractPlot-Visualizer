@@ -183,8 +183,7 @@ const addEquationRow = (defaultValue = "") => {
     
     row.innerHTML = `
         <div class="color-indicator" style="background-color: ${color}; box-shadow: 0 0 5px ${color};"></div>
-        <span>z = </span>
-        <input type="text" class="eq-input" value="${defaultValue}" placeholder="e.g. sin(x - t)">
+        <input type="text" class="eq-input" value="${defaultValue}" placeholder="e.g. z = sin(x) or x**2+y**2 < 16">
         <button class="btn-remove" title="Remove Field">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
@@ -202,8 +201,8 @@ const addEquationRow = (defaultValue = "") => {
 };
 
 // Initial default rows
-addEquationRow("sin(sqrt(x**2 + y**2) - t * 2)");
-addEquationRow("cos(x + t)");
+addEquationRow("z = 4 * sin(sqrt(x**2 + y**2) - t * 2)");
+addEquationRow("z = 4 * cos(x + t)");
 
 btnAddEq.addEventListener('click', () => {
     addEquationRow();

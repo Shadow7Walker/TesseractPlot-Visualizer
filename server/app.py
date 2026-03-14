@@ -22,7 +22,7 @@ class PlotConfig(BaseModel):
 
 # Global state
 current_voxels = np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 3), dtype=np.uint8)
-current_equations = ["sin(sqrt(x**2 + y**2) - t * 2)"]
+current_equations = ["z = 4 * sin(sqrt(x**2 + y**2) - t * 2)"]
 stream_to_hardware = False
 t = 0.0
 is_playing = True
@@ -36,23 +36,24 @@ class TimeConfig(BaseModel):
 def calculate_plot(equations: list[str], current_t: float):
     """
     Evaluates one or multiple mathematical equations.
+    Supports explicit z=, y=, x= definitions, as well as implicit inequalities.
     """
     voxels = np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 3), dtype=np.uint8)
     
-    # Safe eval setup
-    allowed_names = {
-        "x": None, "y": None, 
+    coord_min, coord_max = -5.0, 5.0
+    coord_range = coord_max - coord_min
+    ls = np.linspace(coord_min, coord_max, CUBE_SIZE)
+    
+    # 3D Grid
+    X3, Y3, Z3 = np.meshgrid(ls, ls, ls, indexing='ij')
+    allowed_3d = {
+        "x": X3, "y": Y3, "z": Z3,
         "sin": np.sin, "cos": np.cos, "tan": np.tan, "sqrt": np.sqrt,
         "exp": np.exp, "abs": np.abs, "pi": np.pi, "e": np.e, "t": current_t
     }
     
-    # Scale x, y from -pi to pi
-    x = np.linspace(-np.pi, np.pi, CUBE_SIZE)
-    y = np.linspace(-np.pi, np.pi, CUBE_SIZE)
-    X, Y = np.meshgrid(x, y)
-    
-    allowed_names["x"] = X
-    allowed_names["y"] = Y
+    # 2D Grid
+    X_2d, Y_2d = np.meshgrid(ls, ls, indexing='ij')
     
     colors = [
         (255, 60, 60),   # Red-ish
@@ -62,31 +63,95 @@ def calculate_plot(equations: list[str], current_t: float):
         (255, 60, 255)   # Magenta
     ]
     
+    def clean_eq(e):
+        return e.replace('^', '**')
+
     for idx, eq in enumerate(equations):
         try:
-            # Evaluate Z
-            Z = eval(eq, {"__builtins__": {}}, allowed_names)
+            eq = clean_eq(eq).strip()
+            if not eq: continue
             
-            # Normalize Z to 0-15
-            if np.max(Z) != np.min(Z):
-                Z_norm = (Z - np.min(Z)) / (np.max(Z) - np.min(Z)) * (CUBE_SIZE - 1)
+            mask = np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE), dtype=bool)
+
+            # Explicit z = ...
+            if eq.startswith("z=") or eq.startswith("z ="):
+                rhs = eq.split("=", 1)[1]
+                env = dict(allowed_3d, x=X_2d, y=Y_2d, z=None)
+                Z_val = eval(rhs, {"__builtins__": {}}, env)
+                if np.isscalar(Z_val):
+                    Z_val = np.full_like(X_2d, Z_val)
+                z_idx = np.round((Z_val - coord_min) / coord_range * (CUBE_SIZE - 1)).astype(int)
+                for i in range(CUBE_SIZE):
+                    for j in range(CUBE_SIZE):
+                        if 0 <= z_idx[i, j] < CUBE_SIZE:
+                            mask[i, j, z_idx[i, j]] = True
+
+            # Explicit y = ...
+            elif eq.startswith("y=") or eq.startswith("y ="):
+                rhs = eq.split("=", 1)[1]
+                env = dict(allowed_3d, x=X_2d, z=Y_2d, y=None)
+                Y_val = eval(rhs, {"__builtins__": {}}, env)
+                if np.isscalar(Y_val):
+                    Y_val = np.full_like(X_2d, Y_val)
+                y_idx = np.round((Y_val - coord_min) / coord_range * (CUBE_SIZE - 1)).astype(int)
+                for i in range(CUBE_SIZE):
+                    for k in range(CUBE_SIZE):
+                        if 0 <= y_idx[i, k] < CUBE_SIZE:
+                            mask[i, y_idx[i, k], k] = True
+
+            # Explicit x = ...
+            elif eq.startswith("x=") or eq.startswith("x ="):
+                rhs = eq.split("=", 1)[1]
+                env = dict(allowed_3d, y=X_2d, z=Y_2d, x=None)
+                X_val = eval(rhs, {"__builtins__": {}}, env)
+                if np.isscalar(X_val):
+                    X_val = np.full_like(X_2d, X_val)
+                x_idx = np.round((X_val - coord_min) / coord_range * (CUBE_SIZE - 1)).astype(int)
+                for j in range(CUBE_SIZE):
+                    for k in range(CUBE_SIZE):
+                        if 0 <= x_idx[j, k] < CUBE_SIZE:
+                            mask[x_idx[j, k], j, k] = True
+
+            # Inequalities (3D evaluation)
+            elif any(op in eq for op in ['<', '>', '<=', '>=']):
+                mask_val = eval(eq, {"__builtins__": {}}, allowed_3d)
+                if np.isscalar(mask_val):
+                    if mask_val: mask = np.ones_like(mask)
+                else:
+                    mask = mask_val
+
+            # Implicit equality
+            elif '=' in eq:
+                lhs, rhs = eq.split('=', 1)
+                val = eval(f"abs(({lhs}) - ({rhs}))", {"__builtins__": {}}, allowed_3d)
+                if np.isscalar(val):
+                    val = np.full_like(mask, val, dtype=float)
+                mask = val < 0.8 # default implicit thickness
+            
+            # Fallback (Auto-assume explicit z)
             else:
-                Z_norm = np.zeros_like(Z) + CUBE_SIZE // 2
-                
-            Z_indices = np.round(Z_norm).astype(int)
+                rhs = eq
+                env = dict(allowed_3d, x=X_2d, y=Y_2d, z=None)
+                Z_val = eval(rhs, {"__builtins__": {}}, env)
+                if np.isscalar(Z_val):
+                    Z_val = np.full_like(X_2d, Z_val)
+                z_idx = np.round((Z_val - coord_min) / coord_range * (CUBE_SIZE - 1)).astype(int)
+                for i in range(CUBE_SIZE):
+                    for j in range(CUBE_SIZE):
+                        if 0 <= z_idx[i, j] < CUBE_SIZE:
+                            mask[i, j, z_idx[i, j]] = True
+
+            # Apply colors based on mask
             base_color = colors[idx % len(colors)]
-            
-            # Fill voxels 
             for i in range(CUBE_SIZE):
                 for j in range(CUBE_SIZE):
-                    z_idx = Z_indices[i, j]
-                    if 0 <= z_idx < CUBE_SIZE:
-                        # Adding depth shading to base color
-                        r = int(base_color[0] * (0.4 + 0.6 * (z_idx / 15.0)))
-                        g = int(base_color[1] * (0.4 + 0.6 * (z_idx / 15.0)))
-                        b = int(base_color[2] * (0.4 + 0.6 * (z_idx / 15.0)))
-                        voxels[i, j, z_idx] = [r, g, b]
-                        
+                    for k in range(CUBE_SIZE):
+                        if mask[i, j, k]:
+                            r = int(base_color[0] * (0.4 + 0.6 * (k / 15.0)))
+                            g = int(base_color[1] * (0.4 + 0.6 * (k / 15.0)))
+                            b = int(base_color[2] * (0.4 + 0.6 * (k / 15.0)))
+                            voxels[i, j, k] = [r, g, b]
+
         except Exception as e:
             print(f"Error evaluating equation '{eq}': {e}")
             
