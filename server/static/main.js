@@ -240,6 +240,7 @@ const btnPlayPause = document.getElementById('btn-play-pause');
 const tScrubber = document.getElementById('t-scrubber');
 const speedSlider = document.getElementById('speed-slider');
 const speedLabel = document.getElementById('speed-label');
+const tValDisplay = document.getElementById('t-val-display');
 let isPlaying = true;
 let isScrubbing = false;
 
@@ -254,6 +255,7 @@ setInterval(async () => {
             });
             const data = await res.json();
             tScrubber.value = data.t % 100; // Loop scrubber visually 0-100
+            tValDisplay.innerText = data.t.toFixed(1);
         } catch(e) {}
     }
 }, 500);
@@ -275,6 +277,7 @@ tScrubber.addEventListener('mousedown', () => isScrubbing = true);
 tScrubber.addEventListener('mouseup', () => isScrubbing = false);
 tScrubber.addEventListener('input', async (e) => {
     const newT = parseFloat(e.target.value);
+    tValDisplay.innerText = newT.toFixed(1);
     await fetch('/api/update_time', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
