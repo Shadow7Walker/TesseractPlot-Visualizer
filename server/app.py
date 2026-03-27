@@ -38,6 +38,16 @@ t = 0.0
 is_playing = True
 playback_speed = 1.0
 
+# Pre-compute static geometry grids to save CPU during rapid frame calculations
+COORD_MIN, COORD_MAX = 0.0, 5.0
+COORD_RANGE = COORD_MAX - COORD_MIN
+ls = np.linspace(COORD_MIN, COORD_MAX, CUBE_SIZE)
+X3, Y3, Z3 = np.meshgrid(ls, ls, ls, indexing='ij')
+X_2d, Y_2d = np.meshgrid(ls, ls, indexing='ij')
+
+# Indices maps for explicitly targeting mask planes
+I_IDX, J_IDX = np.indices((CUBE_SIZE, CUBE_SIZE))
+
 class TimeConfig(BaseModel):
     t_val: float = None
     is_playing: bool = None
@@ -50,20 +60,12 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
     """
     voxels = np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 3), dtype=np.uint8)
     
-    coord_min, coord_max = 0.0, 5.0
-    coord_range = coord_max - coord_min
-    ls = np.linspace(coord_min, coord_max, CUBE_SIZE)
-    
-    # 3D Grid
-    X3, Y3, Z3 = np.meshgrid(ls, ls, ls, indexing='ij')
+    # Static geometry maps are pulled from global scope
     allowed_3d = {
         "x": X3, "y": Y3, "z": Z3,
         "sin": np.sin, "cos": np.cos, "tan": np.tan, "sqrt": np.sqrt,
         "exp": np.exp, "abs": np.abs, "pi": np.pi, "e": np.e, "t": current_t
     }
-    
-    # 2D Grid
-    X_2d, Y_2d = np.meshgrid(ls, ls, indexing='ij')
     
     parsed_colors = []
     for hex_c in hex_colors:
@@ -87,39 +89,30 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
                 rhs = eq.split("=", 1)[1]
                 env = dict(allowed_3d, x=X_2d, y=Y_2d, z=None)
                 Z_val = eval(rhs, {"__builtins__": {}}, env)
-                if np.isscalar(Z_val):
-                    Z_val = np.full_like(X_2d, Z_val)
-                z_idx = np.round((Z_val - coord_min) / coord_range * (CUBE_SIZE - 1)).astype(int)
-                for i in range(CUBE_SIZE):
-                    for j in range(CUBE_SIZE):
-                        if 0 <= z_idx[i, j] < CUBE_SIZE:
-                            mask[i, j, z_idx[i, j]] = True
+                if np.isscalar(Z_val): Z_val = np.full_like(X_2d, Z_val)
+                z_idx = np.round((Z_val - COORD_MIN) / COORD_RANGE * (CUBE_SIZE - 1)).astype(int)
+                valid = (z_idx >= 0) & (z_idx < CUBE_SIZE)
+                mask[I_IDX[valid], J_IDX[valid], z_idx[valid]] = True
 
             # Explicit y = ...
             elif eq.startswith("y=") or eq.startswith("y ="):
                 rhs = eq.split("=", 1)[1]
                 env = dict(allowed_3d, x=X_2d, z=Y_2d, y=None)
                 Y_val = eval(rhs, {"__builtins__": {}}, env)
-                if np.isscalar(Y_val):
-                    Y_val = np.full_like(X_2d, Y_val)
-                y_idx = np.round((Y_val - coord_min) / coord_range * (CUBE_SIZE - 1)).astype(int)
-                for i in range(CUBE_SIZE):
-                    for k in range(CUBE_SIZE):
-                        if 0 <= y_idx[i, k] < CUBE_SIZE:
-                            mask[i, y_idx[i, k], k] = True
+                if np.isscalar(Y_val): Y_val = np.full_like(X_2d, Y_val)
+                y_idx = np.round((Y_val - COORD_MIN) / COORD_RANGE * (CUBE_SIZE - 1)).astype(int)
+                valid = (y_idx >= 0) & (y_idx < CUBE_SIZE)
+                mask[I_IDX[valid], y_idx[valid], J_IDX[valid]] = True
 
             # Explicit x = ...
             elif eq.startswith("x=") or eq.startswith("x ="):
                 rhs = eq.split("=", 1)[1]
                 env = dict(allowed_3d, y=X_2d, z=Y_2d, x=None)
                 X_val = eval(rhs, {"__builtins__": {}}, env)
-                if np.isscalar(X_val):
-                    X_val = np.full_like(X_2d, X_val)
-                x_idx = np.round((X_val - coord_min) / coord_range * (CUBE_SIZE - 1)).astype(int)
-                for j in range(CUBE_SIZE):
-                    for k in range(CUBE_SIZE):
-                        if 0 <= x_idx[j, k] < CUBE_SIZE:
-                            mask[x_idx[j, k], j, k] = True
+                if np.isscalar(X_val): X_val = np.full_like(X_2d, X_val)
+                x_idx = np.round((X_val - COORD_MIN) / COORD_RANGE * (CUBE_SIZE - 1)).astype(int)
+                valid = (x_idx >= 0) & (x_idx < CUBE_SIZE)
+                mask[x_idx[valid], I_IDX[valid], J_IDX[valid]] = True
 
             # Inequalities (3D evaluation)
             elif any(op in eq for op in ['<', '>', '<=', '>=']):
@@ -133,8 +126,7 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
             elif '=' in eq:
                 lhs, rhs = eq.split('=', 1)
                 val = eval(f"abs(({lhs}) - ({rhs}))", {"__builtins__": {}}, allowed_3d)
-                if np.isscalar(val):
-                    val = np.full_like(mask, val, dtype=float)
+                if np.isscalar(val): val = np.full_like(mask, val, dtype=float)
                 mask = val < 0.8 # default implicit thickness
             
             # Fallback (Auto-assume explicit z)
@@ -142,24 +134,22 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
                 rhs = eq
                 env = dict(allowed_3d, x=X_2d, y=Y_2d, z=None)
                 Z_val = eval(rhs, {"__builtins__": {}}, env)
-                if np.isscalar(Z_val):
-                    Z_val = np.full_like(X_2d, Z_val)
-                z_idx = np.round((Z_val - coord_min) / coord_range * (CUBE_SIZE - 1)).astype(int)
-                for i in range(CUBE_SIZE):
-                    for j in range(CUBE_SIZE):
-                        if 0 <= z_idx[i, j] < CUBE_SIZE:
-                            mask[i, j, z_idx[i, j]] = True
+                if np.isscalar(Z_val): Z_val = np.full_like(X_2d, Z_val)
+                z_idx = np.round((Z_val - COORD_MIN) / COORD_RANGE * (CUBE_SIZE - 1)).astype(int)
+                valid = (z_idx >= 0) & (z_idx < CUBE_SIZE)
+                mask[I_IDX[valid], J_IDX[valid], z_idx[valid]] = True
 
-            # Apply colors based on mask
+            # Vectorized Matrix Color application
             base_color = parsed_colors[idx % len(parsed_colors)] if parsed_colors else (255, 255, 255)
-            for i in range(CUBE_SIZE):
-                for j in range(CUBE_SIZE):
-                    for k in range(CUBE_SIZE):
-                        if mask[i, j, k]:
-                            r = int(base_color[0] * (0.4 + 0.6 * (k / 7.0)))
-                            g = int(base_color[1] * (0.4 + 0.6 * (k / 7.0)))
-                            b = int(base_color[2] * (0.4 + 0.6 * (k / 7.0)))
-                            voxels[i, j, k] = [r, g, b]
+            
+            k_vals = np.arange(CUBE_SIZE)
+            shading = 0.4 + 0.6 * (k_vals / 7.0)
+            
+            colored_z = np.outer(shading, base_color).astype(np.uint8) # Shape: (8, 3)
+            color_grid = np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 3), dtype=np.uint8)
+            color_grid[:] = colored_z # Broadcasts exactly matching Z dimension mapping natively
+            
+            voxels[mask] = color_grid[mask]
 
         except Exception as e:
             print(f"Error evaluating equation '{eq}': {e}")
@@ -175,19 +165,12 @@ def send_frame_to_esp32(voxels: np.ndarray, ip: str, port: int):
     """
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     
+    # Vectorized zig-zag Z axis on odd Y rows
+    voxels_zig_zag = voxels.copy()
+    voxels_zig_zag[:, 1::2, :, :] = voxels_zig_zag[:, 1::2, ::-1, :]
+    
     for x in range(CUBE_SIZE):
-        packet_data = bytearray()
-        packet_data.append(x) # chunk index (0 to 7), sent to a single ESP32 pin
-        
-        for y in range(CUBE_SIZE):
-            # Zig-zag wiring on the Z axis:
-            # Even Y rows go bottom-to-top (0 to 7), odd Y rows go top-to-bottom (7 to 0)
-            z_range = range(CUBE_SIZE) if y % 2 == 0 else range(CUBE_SIZE - 1, -1, -1)
-            
-            for z in z_range:
-                voxel = voxels[x, y, z]
-                packet_data.extend(voxel)
-                
+        packet_data = bytearray([x]) + voxels_zig_zag[x].tobytes()
         sock.sendto(packet_data, (ip, port))
 
 @app.post("/api/update_plot")
