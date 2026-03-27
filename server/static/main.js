@@ -241,23 +241,23 @@ btnHuygensDemo.addEventListener('click', async () => {
     eqCount = 0;
     
     const huygensEqs = [
-        { c: "#ffffff", e: "abs(x**2 + y**2 + z**2 - clip(t*2, 0, 3.0)**2) < 0.8" }, // Primary wavefront
+        { c: "#ffffff", e: "abs(x**2 + y**2 + z**2 - clip(t, 0, 3.0)**2) < 0.8" }, // Primary wavefront freezes at t=3.0
         
-        // 3 Axis wavelets (Red, Green, Blue) exploding to infinity
-        { c: "#ff3c3c", e: "abs((x - 3.0)**2 + y**2 + z**2 - clip((t-1.5)*2, 0, 100)**2) < 0.8 and (t > 1.5)" },
-        { c: "#3cff3c", e: "abs(x**2 + (y - 3.0)**2 + z**2 - clip((t-1.5)*2, 0, 100)**2) < 0.8 and (t > 1.5)" },
-        { c: "#3c3cff", e: "abs(x**2 + y**2 + (z - 3.0)**2 - clip((t-1.5)*2, 0, 100)**2) < 0.8 and (t > 1.5)" },
+        // 3 Axis wavelets (Red, Green, Blue) starting at t=4.0
+        { c: "#ff3c3c", e: "abs((x - 3.0)**2 + y**2 + z**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
+        { c: "#3cff3c", e: "abs(x**2 + (y - 3.0)**2 + z**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
+        { c: "#3c3cff", e: "abs(x**2 + y**2 + (z - 3.0)**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
 
         // 3 Planar diagonal wavelets (Yellow, Cyan, Magenta) 
-        { c: "#ffff3c", e: "abs((x - 2.12)**2 + (y - 2.12)**2 + z**2 - clip((t-1.5)*2, 0, 100)**2) < 0.8 and (t > 1.5)" },
-        { c: "#3cffff", e: "abs(x**2 + (y - 2.12)**2 + (z - 2.12)**2 - clip((t-1.5)*2, 0, 100)**2) < 0.8 and (t > 1.5)" },
-        { c: "#ff3cff", e: "abs((x - 2.12)**2 + y**2 + (z - 2.12)**2 - clip((t-1.5)*2, 0, 100)**2) < 0.8 and (t > 1.5)" },
+        { c: "#ffff3c", e: "abs((x - 2.12)**2 + (y - 2.12)**2 + z**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
+        { c: "#3cffff", e: "abs(x**2 + (y - 2.12)**2 + (z - 2.12)**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
+        { c: "#ff3cff", e: "abs((x - 2.12)**2 + y**2 + (z - 2.12)**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
 
         // 1 Volumetric exact diagonal wavelet (White)
-        { c: "#ffffff", e: "abs((x - 1.73)**2 + (y - 1.73)**2 + (z - 1.73)**2 - clip((t-1.5)*2, 0, 100)**2) < 0.8 and (t > 1.5)" },
+        { c: "#ffffff", e: "abs((x - 1.73)**2 + (y - 1.73)**2 + (z - 1.73)**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
 
         // Infinite Expanding Envelope
-        { c: "#00ffff", e: "abs(x**2 + y**2 + z**2 - clip(3.0 + (t-1.5)*2, 0, 100)**2) < 0.8 and (t > 1.5)" }
+        { c: "#00ffff", e: "abs(x**2 + y**2 + z**2 - clip(3.0 + (t-4.0), 0, 100)**2) < 0.8 and (t > 4.0)" }
     ];
     
     huygensEqs.forEach(conf => addEquationRow(conf.e, conf.c));
@@ -271,7 +271,7 @@ btnHuygensDemo.addEventListener('click', async () => {
     await fetch('/api/update_time', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ t_val: 0.0, is_playing: true, playback_speed: 1.0 })
+        body: JSON.stringify({ t_val: 0.0, is_playing: true, playback_speed: 0.5 })
     });
     
     // Submit arrays natively

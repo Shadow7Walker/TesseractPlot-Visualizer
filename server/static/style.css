@@ -194,6 +194,25 @@ small {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+    overflow-y: auto;
+    max-height: 40vh;
+    padding-right: 0.5rem;
+}
+
+/* Scrollbar specifically for the equations box */
+#equations-container::-webkit-scrollbar {
+    width: 6px;
+}
+#equations-container::-webkit-scrollbar-track {
+    background: rgba(0,0,0,0.1);
+    border-radius: 4px;
+}
+#equations-container::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+}
+#equations-container::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
 }
 
 .equation-row {
