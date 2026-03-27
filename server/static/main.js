@@ -31,9 +31,9 @@ scene.add(cubeGroup);
 const createVoxelGrid = () => {
     // Basic material (will be updated via WebSocket)
     const geometry = new THREE.SphereGeometry(0.35, 16, 16);
-    const material = new THREE.MeshBasicMaterial({ color: 0x111111, transparent: true, opacity: 0.1 });
+    const material = new THREE.MeshBasicMaterial({ color: 0x111111, transparent: true, opacity: 0.1, side: THREE.DoubleSide });
 
-    const offset = (CUBE_SIZE - 1) * voxelSpacing / 2;
+    const offset = voxelSpacing / 2;
 
     for (let x = 0; x < CUBE_SIZE; x++) {
         voxels[x] = [];
@@ -42,11 +42,11 @@ const createVoxelGrid = () => {
             for (let z = 0; z < CUBE_SIZE; z++) {
                 const mesh = new THREE.Mesh(geometry, material.clone());
                 
-                // Position relative to center
+                // Position relative to center, constrained explicitly to the positive octant
                 mesh.position.set(
-                    (x * voxelSpacing) - offset,
-                    (z * voxelSpacing) - offset, // Y in three.js is UP, but our data has Z as UP
-                    (y * voxelSpacing) - offset  // So mapping y(data)->z(three) and z(data)->y(three)
+                    (x * voxelSpacing) + offset,
+                    (z * voxelSpacing) + offset, // Y in three.js is UP, but our data has Z as UP
+                    (y * voxelSpacing) + offset  // So mapping y(data)->z(three) and z(data)->y(three)
                 );
                 
                 cubeGroup.add(mesh);
@@ -56,14 +56,25 @@ const createVoxelGrid = () => {
     }
     
     // Wireframe Box Outline
-    const boxGeo = new THREE.BoxGeometry(
-        CUBE_SIZE * voxelSpacing, 
-        CUBE_SIZE * voxelSpacing, 
-        CUBE_SIZE * voxelSpacing
-    );
+    const boxSize = CUBE_SIZE * voxelSpacing;
+    const boxGeo = new THREE.BoxGeometry(boxSize, boxSize, boxSize);
+    boxGeo.translate(boxSize / 2, boxSize / 2, boxSize / 2);
+    
     const edges = new THREE.EdgesGeometry(boxGeo);
     const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x334155 }));
     cubeGroup.add(line);
+    
+    // Create 7 cloned mirror groups representing the 3 physical reflections
+    const scales = [
+        [-1, 1, 1], [1, -1, 1], [-1, -1, 1],
+        [1, 1, -1], [-1, 1, -1], [1, -1, -1], [-1, -1, -1]
+    ];
+    
+    scales.forEach(([sx, sy, sz]) => {
+        const clone = cubeGroup.clone();
+        clone.scale.set(sx, sy, sz);
+        scene.add(clone);
+    });
 };
 
 createVoxelGrid();
