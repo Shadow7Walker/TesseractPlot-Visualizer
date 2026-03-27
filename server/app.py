@@ -5,6 +5,7 @@ import numpy as np
 import socket
 import asyncio
 from contextlib import asynccontextmanager
+import ast
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -53,6 +54,31 @@ class TimeConfig(BaseModel):
     is_playing: bool = None
     playback_speed: float = None
 
+class RewriteLogic(ast.NodeTransformer):
+    def visit_BoolOp(self, node):
+        self.generic_visit(node)
+        if isinstance(node.op, ast.And):
+            result = node.values[0]
+            for val in node.values[1:]:
+                result = ast.BinOp(left=result, op=ast.BitAnd(), right=val)
+            return result
+        elif isinstance(node.op, ast.Or):
+            result = node.values[0]
+            for val in node.values[1:]:
+                result = ast.BinOp(left=result, op=ast.BitOr(), right=val)
+            return result
+        return node
+
+def numpy_safe_eval(eq_str, env):
+    try:
+        tree = ast.parse(eq_str, mode='eval')
+        tree = RewriteLogic().visit(tree)
+        ast.fix_missing_locations(tree)
+        compiled = compile(tree, filename='<ast>', mode='eval')
+        return eval(compiled, {"__builtins__": {}}, env)
+    except Exception as e:
+        raise ValueError(f"Evaluation failed: {e}")
+
 def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float):
     """
     Evaluates one or multiple mathematical equations.
@@ -88,7 +114,7 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
             if eq.startswith("z=") or eq.startswith("z ="):
                 rhs = eq.split("=", 1)[1]
                 env = dict(allowed_3d, x=X_2d, y=Y_2d, z=None)
-                Z_val = eval(rhs, {"__builtins__": {}}, env)
+                Z_val = numpy_safe_eval(rhs, env)
                 if np.isscalar(Z_val): Z_val = np.full_like(X_2d, Z_val)
                 z_idx = np.round((Z_val - COORD_MIN) / COORD_RANGE * (CUBE_SIZE - 1)).astype(int)
                 valid = (z_idx >= 0) & (z_idx < CUBE_SIZE)
@@ -98,7 +124,7 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
             elif eq.startswith("y=") or eq.startswith("y ="):
                 rhs = eq.split("=", 1)[1]
                 env = dict(allowed_3d, x=X_2d, z=Y_2d, y=None)
-                Y_val = eval(rhs, {"__builtins__": {}}, env)
+                Y_val = numpy_safe_eval(rhs, env)
                 if np.isscalar(Y_val): Y_val = np.full_like(X_2d, Y_val)
                 y_idx = np.round((Y_val - COORD_MIN) / COORD_RANGE * (CUBE_SIZE - 1)).astype(int)
                 valid = (y_idx >= 0) & (y_idx < CUBE_SIZE)
@@ -108,7 +134,7 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
             elif eq.startswith("x=") or eq.startswith("x ="):
                 rhs = eq.split("=", 1)[1]
                 env = dict(allowed_3d, y=X_2d, z=Y_2d, x=None)
-                X_val = eval(rhs, {"__builtins__": {}}, env)
+                X_val = numpy_safe_eval(rhs, env)
                 if np.isscalar(X_val): X_val = np.full_like(X_2d, X_val)
                 x_idx = np.round((X_val - COORD_MIN) / COORD_RANGE * (CUBE_SIZE - 1)).astype(int)
                 valid = (x_idx >= 0) & (x_idx < CUBE_SIZE)
@@ -116,7 +142,7 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
 
             # Inequalities (3D evaluation)
             elif any(op in eq for op in ['<', '>', '<=', '>=']):
-                mask_val = eval(eq, {"__builtins__": {}}, allowed_3d)
+                mask_val = numpy_safe_eval(eq, allowed_3d)
                 if np.isscalar(mask_val):
                     if mask_val: mask = np.ones_like(mask)
                 else:
@@ -125,7 +151,7 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
             # Implicit equality
             elif '=' in eq:
                 lhs, rhs = eq.split('=', 1)
-                val = eval(f"abs(({lhs}) - ({rhs}))", {"__builtins__": {}}, allowed_3d)
+                val = numpy_safe_eval(f"abs(({lhs}) - ({rhs}))", allowed_3d)
                 if np.isscalar(val): val = np.full_like(mask, val, dtype=float)
                 mask = val < 0.8 # default implicit thickness
             
@@ -133,7 +159,7 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
             else:
                 rhs = eq
                 env = dict(allowed_3d, x=X_2d, y=Y_2d, z=None)
-                Z_val = eval(rhs, {"__builtins__": {}}, env)
+                Z_val = numpy_safe_eval(rhs, env)
                 if np.isscalar(Z_val): Z_val = np.full_like(X_2d, Z_val)
                 z_idx = np.round((Z_val - COORD_MIN) / COORD_RANGE * (CUBE_SIZE - 1)).astype(int)
                 valid = (z_idx >= 0) & (z_idx < CUBE_SIZE)
