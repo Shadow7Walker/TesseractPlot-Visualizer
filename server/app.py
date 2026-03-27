@@ -71,7 +71,7 @@ class RewriteLogic(ast.NodeTransformer):
 
 def numpy_safe_eval(eq_str, env):
     try:
-        tree = ast.parse(eq_str, mode='eval')
+        tree = ast.parse(str(eq_str).strip(), mode='eval')
         tree = RewriteLogic().visit(tree)
         ast.fix_missing_locations(tree)
         compiled = compile(tree, filename='<ast>', mode='eval')
