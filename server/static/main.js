@@ -241,14 +241,11 @@ btnHuygensDemo.addEventListener('click', async () => {
     eqCount = 0;
     
     const huygensEqs = [
-        { c: "#ffffff", e: "(x - 2.5)**2 + (y - 2.5)**2 + (z - 2.5)**2 = clip(t*2, 0, 1.5)**2" },
-        { c: "#ff3c3c", e: "(x - 4.0)**2 + (y - 2.5)**2 + (z - 2.5)**2 = clip((t-0.75)*2, 0, 1.0)**2" },
-        { c: "#ff3c3c", e: "(x - 1.0)**2 + (y - 2.5)**2 + (z - 2.5)**2 = clip((t-0.75)*2, 0, 1.0)**2" },
-        { c: "#3cff3c", e: "(x - 2.5)**2 + (y - 4.0)**2 + (z - 2.5)**2 = clip((t-0.75)*2, 0, 1.0)**2" },
-        { c: "#3cff3c", e: "(x - 2.5)**2 + (y - 1.0)**2 + (z - 2.5)**2 = clip((t-0.75)*2, 0, 1.0)**2" },
-        { c: "#3c3cff", e: "(x - 2.5)**2 + (y - 2.5)**2 + (z - 4.0)**2 = clip((t-0.75)*2, 0, 1.0)**2" },
-        { c: "#3c3cff", e: "(x - 2.5)**2 + (y - 2.5)**2 + (z - 1.0)**2 = clip((t-0.75)*2, 0, 1.0)**2" },
-        { c: "#00ffff", e: "((x - 2.5)**2 + (y - 2.5)**2 + (z - 2.5)**2 = clip(1.5 + (t-0.75)*2, 0, 2.5)**2) and (t > 0.75)" }
+        { c: "#ffffff", e: "x**2 + y**2 + z**2 = clip(t*2, 0, 3.0)**2" }, // Primary wavefront
+        { c: "#ff3c3c", e: "(x - 3.0)**2 + y**2 + z**2 = clip((t-1.5)*2, 0, 2.0)**2" }, // Secondary +x
+        { c: "#3cff3c", e: "x**2 + (y - 3.0)**2 + z**2 = clip((t-1.5)*2, 0, 2.0)**2" }, // Secondary +y
+        { c: "#3c3cff", e: "x**2 + y**2 + (z - 3.0)**2 = clip((t-1.5)*2, 0, 2.0)**2" }, // Secondary +z
+        { c: "#00ffff", e: "(x**2 + y**2 + z**2 = clip(3.0 + (t-1.5)*2, 0, 5.0)**2) and (t > 1.5)" } // Continuing Envelope
     ];
     
     huygensEqs.forEach(conf => addEquationRow(conf.e, conf.c));
