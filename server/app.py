@@ -86,11 +86,11 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
     """
     voxels = np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 3), dtype=np.uint8)
     
-    # Static geometry maps are pulled from global scope
     allowed_3d = {
         "x": X3, "y": Y3, "z": Z3,
         "sin": np.sin, "cos": np.cos, "tan": np.tan, "sqrt": np.sqrt,
-        "exp": np.exp, "abs": np.abs, "pi": np.pi, "e": np.e, "t": current_t
+        "exp": np.exp, "abs": np.abs, "pi": np.pi, "e": np.e, "t": current_t,
+        "clip": np.clip
     }
     
     parsed_colors = []

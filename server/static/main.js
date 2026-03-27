@@ -203,10 +203,10 @@ const btnAddEq = document.getElementById('btn-add-eq');
 const eqColors = ['#ff3c3c', '#3cff3c', '#3c3cff', '#ffff3c', '#ff3cff'];
 let eqCount = 0;
 
-const addEquationRow = (defaultValue = "") => {
+const addEquationRow = (defaultValue = "", overrideColor = null) => {
     const row = document.createElement('div');
     row.className = 'equation-row';
-    const color = eqColors[eqCount % eqColors.length];
+    const color = overrideColor || eqColors[eqCount % eqColors.length];
     
     row.innerHTML = `
         <input type="color" class="eq-color" value="${color}" style="border: none; width: 24px; height: 28px; padding: 0; background: none; cursor: pointer; border-radius: 4px; margin-right: 0.5rem;" title="Change Graph Color">
@@ -233,6 +233,40 @@ addEquationRow("z = 4 * cos(x + t)");
 
 btnAddEq.addEventListener('click', () => {
     addEquationRow();
+});
+
+const btnHuygensDemo = document.getElementById('btn-huygens-demo');
+btnHuygensDemo.addEventListener('click', async () => {
+    container.innerHTML = '';
+    eqCount = 0;
+    
+    const huygensEqs = [
+        { c: "#ffffff", e: "(x - 2.5)**2 + (y - 2.5)**2 + (z - 2.5)**2 = clip(t*2, 0, 1.5)**2" },
+        { c: "#ff3c3c", e: "(x - 4.0)**2 + (y - 2.5)**2 + (z - 2.5)**2 = clip((t-0.75)*2, 0, 1.0)**2" },
+        { c: "#ff3c3c", e: "(x - 1.0)**2 + (y - 2.5)**2 + (z - 2.5)**2 = clip((t-0.75)*2, 0, 1.0)**2" },
+        { c: "#3cff3c", e: "(x - 2.5)**2 + (y - 4.0)**2 + (z - 2.5)**2 = clip((t-0.75)*2, 0, 1.0)**2" },
+        { c: "#3cff3c", e: "(x - 2.5)**2 + (y - 1.0)**2 + (z - 2.5)**2 = clip((t-0.75)*2, 0, 1.0)**2" },
+        { c: "#3c3cff", e: "(x - 2.5)**2 + (y - 2.5)**2 + (z - 4.0)**2 = clip((t-0.75)*2, 0, 1.0)**2" },
+        { c: "#3c3cff", e: "(x - 2.5)**2 + (y - 2.5)**2 + (z - 1.0)**2 = clip((t-0.75)*2, 0, 1.0)**2" },
+        { c: "#00ffff", e: "((x - 2.5)**2 + (y - 2.5)**2 + (z - 2.5)**2 = clip(1.5 + (t-0.75)*2, 0, 2.5)**2) and (t > 0.75)" }
+    ];
+    
+    huygensEqs.forEach(conf => addEquationRow(conf.e, conf.c));
+    
+    // Auto-reset time to 0 and resume play
+    isPlaying = true;
+    btnPlayPause.innerText = "Pause";
+    btnPlayPause.classList.toggle('primary', false);
+    btnPlayPause.classList.toggle('secondary', true);
+    
+    await fetch('/api/update_time', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ t_val: 0.0, is_playing: true, playback_speed: 1.0 })
+    });
+    
+    // Submit arrays natively
+    btnUpdate.click();
 });
 
 // Playback Controls
