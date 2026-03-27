@@ -89,7 +89,7 @@ void loop() {
             // Valid chunk received
             if (packet.chunkIndex < NUM_PINS) {
                 // Determine the starting index in the LED array for this chunk.
-                // Each chunk perfectly maps to one of the 16 output pins.
+                // Each chunk perfectly maps to one of the 8 output pins.
                 int startIndex = packet.chunkIndex * NUM_LEDS_PER_PIN;
                 
                 for(int i = 0; i < NUM_LEDS_PER_PIN; i++) {

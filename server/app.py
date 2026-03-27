@@ -168,20 +168,20 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
 
 def send_frame_to_esp32(voxels: np.ndarray, ip: str, port: int):
     """
-    Sends the 16x16x16 voxel array to the ESP32 via UDP.
-    Splits the data into 16 packets. To match physical vertical tubes, 
-    each packet contains one X-plane (16 tubes of 16 LEDs).
-    We assume the 16 tubes on a single ESP32 pin are wired in a Z-axis zig-zag.
+    Sends the 8x8x8 voxel array to the ESP32 via UDP.
+    Splits the data into 8 packets. To match physical vertical tubes, 
+    each packet contains one X-plane (8 tubes of 8 LEDs).
+    We assume the 8 tubes on a single ESP32 pin are wired in a Z-axis zig-zag.
     """
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     
     for x in range(CUBE_SIZE):
         packet_data = bytearray()
-        packet_data.append(x) # chunk index (0 to 15), sent to a single ESP32 pin
+        packet_data.append(x) # chunk index (0 to 7), sent to a single ESP32 pin
         
         for y in range(CUBE_SIZE):
             # Zig-zag wiring on the Z axis:
-            # Even Y rows go bottom-to-top (0 to 15), odd Y rows go top-to-bottom (15 to 0)
+            # Even Y rows go bottom-to-top (0 to 7), odd Y rows go top-to-bottom (7 to 0)
             z_range = range(CUBE_SIZE) if y % 2 == 0 else range(CUBE_SIZE - 1, -1, -1)
             
             for z in z_range:
