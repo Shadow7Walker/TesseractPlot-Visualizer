@@ -22,7 +22,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # ESP32 IP configuration (Can be updated via UI or hardcoded)
 ESP32_IP = "192.168.1.100" # Change to actual IP
 ESP32_PORT = 12345
-CUBE_SIZE = 16
+CUBE_SIZE = 8
 
 class PlotConfig(BaseModel):
     equations: list[str]
@@ -50,7 +50,7 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
     """
     voxels = np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 3), dtype=np.uint8)
     
-    coord_min, coord_max = -5.0, 5.0
+    coord_min, coord_max = 0.0, 5.0
     coord_range = coord_max - coord_min
     ls = np.linspace(coord_min, coord_max, CUBE_SIZE)
     
@@ -156,9 +156,9 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
                 for j in range(CUBE_SIZE):
                     for k in range(CUBE_SIZE):
                         if mask[i, j, k]:
-                            r = int(base_color[0] * (0.4 + 0.6 * (k / 15.0)))
-                            g = int(base_color[1] * (0.4 + 0.6 * (k / 15.0)))
-                            b = int(base_color[2] * (0.4 + 0.6 * (k / 15.0)))
+                            r = int(base_color[0] * (0.4 + 0.6 * (k / 7.0)))
+                            g = int(base_color[1] * (0.4 + 0.6 * (k / 7.0)))
+                            b = int(base_color[2] * (0.4 + 0.6 * (k / 7.0)))
                             voxels[i, j, k] = [r, g, b]
 
         except Exception as e:

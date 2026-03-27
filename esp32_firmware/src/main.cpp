@@ -12,27 +12,26 @@ const int localPort = 12345;
 WiFiUDP udp;
 
 // --- LED Settings ---
-#define NUM_LEDS_PER_PIN 256
-#define NUM_PINS 16
+#define NUM_LEDS_PER_PIN 64
+#define NUM_PINS 8
 #define TOTAL_LEDS (NUM_LEDS_PER_PIN * NUM_PINS)
 
-// Using 16 pins for parallel output. Adjust these to match your ESP32's available pins.
+// Using 8 pins for parallel output. Adjust these to match your ESP32's available pins.
 // WARNING: Avoid pins 34, 35, 36, 39 (input only). Avoid pins used for strapping if possible.
 const uint8_t LED_PINS[NUM_PINS] = {
-    2, 4, 12, 13, 14, 15, 25, 26, 27, 32, 33, 21, 22, 23, 18, 19
+    2, 4, 12, 13, 14, 15, 25, 26
 };
 
 // FastLED array
 CRGB leds[TOTAL_LEDS];
 
 // --- Buffer for incoming data ---
-// 16x16x16 = 4096 voxels. If we send 3 bytes (RGB) per voxel, that's 12288 bytes.
-// This is larger than a standard UDP packet MTU (mostly ~1500 bytes).
-// Therefore, we will receive data in chunks. 
-// We send 16 packets, each containing one X-plane of 16 tubes (256 RGB values = 768 bytes).
+// 8x8x8 = 512 voxels. At 3 bytes (RGB) per voxel, that's 1536 bytes.
+// We will receive data in chunks. 
+// We send 8 packets, each containing one X-plane of 8 tubes (64 RGB values = 192 bytes).
 struct __attribute__((packed)) UpdatePacket {
-    uint8_t chunkIndex; // 0 to 15 (Mapping to a specific pin)
-    uint8_t rgbData[768]; // 256 LEDs * 3 colors
+    uint8_t chunkIndex; // 0 to 7 (Mapping to a specific pin)
+    uint8_t rgbData[192]; // 64 LEDs * 3 colors
 };
 
 void setupWiFi() {
@@ -58,7 +57,7 @@ void setup() {
 
     // Setup FastLED parallel output
     // Due to C++ template constraints in FastLED, we must add strips individually
-    FastLED.addLeds<WS2812B, 2, GRB>(leds, 0 * NUM_LEDS_PER_PIN, NUM_LEDS_PER_PIN);
+    FastLED.addLeds<WS2812B, 2, GRB>(leds,  0 * NUM_LEDS_PER_PIN, NUM_LEDS_PER_PIN);
     FastLED.addLeds<WS2812B, 4, GRB>(leds,  1 * NUM_LEDS_PER_PIN, NUM_LEDS_PER_PIN);
     FastLED.addLeds<WS2812B, 12, GRB>(leds, 2 * NUM_LEDS_PER_PIN, NUM_LEDS_PER_PIN);
     FastLED.addLeds<WS2812B, 13, GRB>(leds, 3 * NUM_LEDS_PER_PIN, NUM_LEDS_PER_PIN);
@@ -66,14 +65,6 @@ void setup() {
     FastLED.addLeds<WS2812B, 15, GRB>(leds, 5 * NUM_LEDS_PER_PIN, NUM_LEDS_PER_PIN);
     FastLED.addLeds<WS2812B, 25, GRB>(leds, 6 * NUM_LEDS_PER_PIN, NUM_LEDS_PER_PIN);
     FastLED.addLeds<WS2812B, 26, GRB>(leds, 7 * NUM_LEDS_PER_PIN, NUM_LEDS_PER_PIN);
-    FastLED.addLeds<WS2812B, 27, GRB>(leds, 8 * NUM_LEDS_PER_PIN, NUM_LEDS_PER_PIN);
-    FastLED.addLeds<WS2812B, 32, GRB>(leds, 9 * NUM_LEDS_PER_PIN, NUM_LEDS_PER_PIN);
-    FastLED.addLeds<WS2812B, 33, GRB>(leds, 10 * NUM_LEDS_PER_PIN, NUM_LEDS_PER_PIN);
-    FastLED.addLeds<WS2812B, 21, GRB>(leds, 11 * NUM_LEDS_PER_PIN, NUM_LEDS_PER_PIN);
-    FastLED.addLeds<WS2812B, 22, GRB>(leds, 12 * NUM_LEDS_PER_PIN, NUM_LEDS_PER_PIN);
-    FastLED.addLeds<WS2812B, 23, GRB>(leds, 13 * NUM_LEDS_PER_PIN, NUM_LEDS_PER_PIN);
-    FastLED.addLeds<WS2812B, 18, GRB>(leds, 14 * NUM_LEDS_PER_PIN, NUM_LEDS_PER_PIN);
-    FastLED.addLeds<WS2812B, 19, GRB>(leds, 15 * NUM_LEDS_PER_PIN, NUM_LEDS_PER_PIN);
 
     FastLED.setBrightness(128); // 50% brightness to save power initially
     FastLED.clear();
@@ -96,7 +87,7 @@ void loop() {
         
         if (len == sizeof(UpdatePacket)) {
             // Valid chunk received
-            if (packet.chunkIndex < 16) {
+            if (packet.chunkIndex < NUM_PINS) {
                 // Determine the starting index in the LED array for this chunk.
                 // Each chunk perfectly maps to one of the 16 output pins.
                 int startIndex = packet.chunkIndex * NUM_LEDS_PER_PIN;
@@ -112,8 +103,8 @@ void loop() {
                 // Mark chunk as received using bitwise OR
                 layersReceivedMask |= (1 << packet.chunkIndex);
 
-                // If we got all 16 layers (mask = 1111111111111111 in binary = 0xFFFF), show frame
-                if (layersReceivedMask == 0xFFFF) {
+                // If we got all 8 layers (mask = 11111111 in binary = 0xFF), show frame
+                if (layersReceivedMask == 0xFF) {
                     FastLED.show();
                     layersReceivedMask = 0; // Reset for next frame
                 }

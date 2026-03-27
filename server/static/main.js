@@ -1,5 +1,5 @@
 // 3D Visualizer Setup
-const CUBE_SIZE = 16;
+const CUBE_SIZE = 8;
 const voxelSpacing = 1.2;
 const voxels = []; // 3D array of meshes
 
@@ -68,7 +68,7 @@ const createVoxelGrid = () => {
 
 createVoxelGrid();
 
-camera.position.set(25, 20, 25);
+camera.position.set(15, 12, 15);
 controls.target.set(0, 0, 0);
 
 // Animation Loop
