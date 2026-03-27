@@ -66,3 +66,5 @@ uv run uvicorn app:app --port 8000
 ### 3. Open the Dashboard
 Navigate to `http://localhost:8000/static/index.html` in any modern web browser.
 Enter mathematical volumes, pick colors, hit **Render**, and when you're ready, toggle **Stream to Hardware**!
+
+eg: try (x**2 + y**2 + z**2)<t and (x**2 + y**2 + z**2)>t-7
