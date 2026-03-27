@@ -27,6 +27,10 @@ scene.add(dirLight);
 const cubeGroup = new THREE.Group();
 scene.add(cubeGroup);
 
+// Group to hold the virtual mirror clones
+const mirrorsGroup = new THREE.Group();
+scene.add(mirrorsGroup);
+
 // Create the 16x16x16 grid of spheres (representing LEDs in tubes)
 const createVoxelGrid = () => {
     // Basic material (will be updated via WebSocket)
@@ -73,7 +77,7 @@ const createVoxelGrid = () => {
     scales.forEach(([sx, sy, sz]) => {
         const clone = cubeGroup.clone();
         clone.scale.set(sx, sy, sz);
-        scene.add(clone);
+        mirrorsGroup.add(clone);
     });
 };
 
@@ -102,6 +106,18 @@ const animate = () => {
 };
 
 animate();
+
+// UI: Toggle Mirrors
+const btnToggleMirrors = document.getElementById('btn-toggle-mirrors');
+let mirrorsEnabled = true;
+
+btnToggleMirrors.addEventListener('click', () => {
+    mirrorsEnabled = !mirrorsEnabled;
+    mirrorsGroup.visible = mirrorsEnabled;
+    btnToggleMirrors.innerText = mirrorsEnabled ? 'Disable UI Mirrors' : 'Enable UI Mirrors';
+    btnToggleMirrors.classList.toggle('primary', !mirrorsEnabled);
+    btnToggleMirrors.classList.toggle('secondary', mirrorsEnabled);
+});
 
 // Handle Window Resize
 window.addEventListener('resize', () => {
