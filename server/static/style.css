@@ -41,6 +41,22 @@ body {
     gap: 1.5rem;
     z-index: 10;
     box-shadow: 4px 0 15px rgba(0,0,0,0.5);
+    overflow-y: auto;
+}
+
+/* Premium Scrollbar Styling */
+.sidebar::-webkit-scrollbar {
+    width: 8px;
+}
+.sidebar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.sidebar::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+}
+.sidebar::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
 }
 
 header h1 {
