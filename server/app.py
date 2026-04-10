@@ -64,7 +64,7 @@ def open_wifi(ip):
             # Set to non-blocking to prevent frame delay on network hiccups
             active_udp_sock.setblocking(False)
             WIFI_TARGET = (ip, WIFI_PORT)
-            print(f"WiFi socket ready for target {ip}:{WIFI_PORT}")
+            print(f"📡 WiFi UDP Socket initialized. Streaming to {ip}:{WIFI_PORT}")
             return True
         except Exception as e:
             print(f"WiFi socket creation failed: {e}")
@@ -269,7 +269,9 @@ def send_frame_to_esp32(voxels: np.ndarray):
             try:
                 active_udp_sock.sendto(packet_data, WIFI_TARGET)
             except Exception as e:
-                # Common in non-blocking UDP if buffer is full
+                # To prevent log spam, we only print occasionally or just pass. 
+                # But for debugging, let's print the actual error if it happens.
+                print(f"UDP send error: {e}")
                 pass
 
 @app.post("/api/update_plot")

@@ -26,7 +26,7 @@ Tesseract Plot Studio is a high-performance 3D visualization suite designed to c
 ### 3. ESP32 Dual-Mode Firmware (`esp32_firmware_dual.ino`)
 - **Zigzag & Skip Mapping**: Specifically designed for a physical build using 8 strips of 73 LEDs each.
 - **Protocol**: Maps 64 logical voxels into 73 physical LEDs per strip (1 skip + 8 active pattern).
-- **Auto-Connect**: Asynchronous WiFi handling allows USB streaming to work even if the network is unavailable.
+- **AP Mode WiFi**: The ESP32 creates its own network (`TesseractPlotx0001`) so you can stream reliably anywhere without a router.
 
 ---
 
@@ -68,11 +68,14 @@ The firmware is optimized for the following ESP32 pins to allow maximum space be
 
 ## 🚀 Getting Started
 
-1. **Flash Firmware**: Open `esp32_firmware_dual.ino`. Enter your WiFi SSID and set password to `pass1234`.
-2. **Launch Server**:
+1. **Flash Firmware**: Open `esp32_firmware_dual.ino`.
+2. **Connect to WiFi**: Connect your laptop directly to the **TesseractPlotx0001** WiFi network (Password: `pass1234`). Note: You will lose internet connection on this interface.
+3. **Launch Server**:
    ```bash
    cd ./server/
    uv run uvicorn app:app --port 8000
    ```
-3. **Open Simulator**: Go to `http://localhost:8000/static/index.html`.
-4. **Link Hardware**: Select the **USB** or **WiFi** tab, click **Start Streaming**, and watch the math come to life.
+4. **Open Simulator**: Go to `http://localhost:8000/static/index.html`.
+5. **Link Hardware**: 
+   - **USB**: Select the **USB** tab, enter your COM port, and click **Start Streaming**.
+   - **WiFi**: Select the **WiFi** tab, enter **`192.168.4.1`**, and click **Start Streaming**.
