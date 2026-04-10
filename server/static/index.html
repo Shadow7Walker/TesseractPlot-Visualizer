@@ -47,23 +47,19 @@
             </div>
 
             <div class="control-group">
-                <label for="esp_ip">Hardware IP Address</label>
-                <input type="text" id="esp_ip" value="192.168.1.100" placeholder="192.168.1.100">
+                <label>Hardware Connection</label>
+                <div class="input-wrapper">
+                    <span>COM</span>
+                    <input type="text" id="serial-port" value="COM3" placeholder="e.g. COM3 or /dev/cu.usbX">
+                </div>
+                <button id="btn-stream" class="btn danger">
+                    <span class="status-indicator" id="stream-status"></span>
+                    Stream to Hardware
+                </button>
             </div>
 
             <button id="btn-toggle-mirrors" class="btn secondary" style="margin-bottom: 0.5rem; width: 100%;">Disable UI Mirrors</button>
             <button id="btn-update" class="btn primary">Render 3D Preview</button>
-            <div class="divider"></div>
-            
-            <div class="hardware-status">
-                <div class="status-indicator" id="hardware-status-dot"></div>
-                <span>Hardware Disconnected</span>
-            </div>
-            
-            <button id="btn-stream" class="btn danger">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                Stream to Hardware
-            </button>
         </aside>
 
         <!-- 3D Canvas Area -->

@@ -2,7 +2,7 @@ from fastapi import FastAPI, WebSocket
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import numpy as np
-import socket
+import serial
 import asyncio
 from contextlib import asynccontextmanager
 import ast
@@ -10,25 +10,42 @@ import ast
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Create the streaming task
+    init_serial(SERIAL_PORT)
     task = asyncio.create_task(stream_task())
     yield
     # Shutdown: Cancel the task
     task.cancel()
+    if active_serial and active_serial.is_open:
+        active_serial.close()
 
 app = FastAPI(lifespan=lifespan)
 
 # Mount the static directory for the Web UI
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# ESP32 IP configuration (Can be updated via UI or hardcoded)
-ESP32_IP = "192.168.1.100" # Change to actual IP
-ESP32_PORT = 12345
+# ESP32 Serial Configuration
+SERIAL_PORT = "COM3" # Default Windows fallback, update via UI
+active_serial = None
 CUBE_SIZE = 8
+
+def init_serial(port_name):
+    global active_serial, SERIAL_PORT
+    SERIAL_PORT = port_name
+    if active_serial and active_serial.is_open:
+        active_serial.close()
+    
+    if port_name and port_name.strip() and port_name != "None":
+        try:
+            active_serial = serial.Serial(port_name, 921600, timeout=1)
+            print(f"Connected to {port_name} at 921600 baud.")
+        except Exception as e:
+            print(f"Could not connect to {port_name}: {e}")
+            active_serial = None
 
 class PlotConfig(BaseModel):
     equations: list[str]
     colors: list[str]
-    esp32_ip: str
+    serial_port: str
 
 # Global state
 current_voxels = np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 3), dtype=np.uint8)
@@ -182,14 +199,15 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
             
     return voxels
 
-def send_frame_to_esp32(voxels: np.ndarray, ip: str, port: int):
+def send_frame_to_esp32(voxels: np.ndarray):
     """
-    Sends the 8x8x8 voxel array to the ESP32 via UDP.
+    Sends the 8x8x8 voxel array to the ESP32 via USB Serial.
     Splits the data into 8 packets. To match physical vertical tubes, 
     each packet contains one X-plane (8 tubes of 8 LEDs).
-    We assume the 8 tubes on a single ESP32 pin are wired in a Z-axis zig-zag.
     """
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    global active_serial
+    if not active_serial or not active_serial.is_open:
+        return
     
     # Vectorized zig-zag Z axis on odd Y rows
     voxels_zig_zag = voxels.copy()
@@ -197,12 +215,19 @@ def send_frame_to_esp32(voxels: np.ndarray, ip: str, port: int):
     
     for x in range(CUBE_SIZE):
         packet_data = bytearray([x]) + voxels_zig_zag[x].tobytes()
-        sock.sendto(packet_data, (ip, port))
+        try:
+            active_serial.write(packet_data)
+        except Exception as e:
+            print(f"Serial write error: {e}")
+            active_serial.close()
+            active_serial = None
+            break
 
 @app.post("/api/update_plot")
 async def update_plot(config: PlotConfig):
-    global current_equations, current_colors, ESP32_IP, t
-    ESP32_IP = config.esp32_ip
+    global current_equations, current_colors, SERIAL_PORT, t
+    if config.serial_port != SERIAL_PORT:
+        init_serial(config.serial_port)
     current_equations = config.equations
     current_colors = config.colors
     return {"status": "success", "message": "Plot updated"}
@@ -246,7 +271,7 @@ async def stream_task():
         current_voxels = calculate_plot(current_equations, current_colors, t)
         
         if stream_to_hardware:
-            send_frame_to_esp32(current_voxels, ESP32_IP, ESP32_PORT)
+            send_frame_to_esp32(current_voxels)
             
         # Run rendering loop at roughly ~30fps 
         await asyncio.sleep(1/30.0)

@@ -194,7 +194,7 @@ const updateVoxels = (flatArray) => {
 // API Interactions
 const btnUpdate = document.getElementById('btn-update');
 const btnStream = document.getElementById('btn-stream');
-const ipInput = document.getElementById('esp_ip');
+const serialPortInput = document.getElementById('serial-port');
 let isStreaming = false;
 
 // Manage dynamic equation fields
@@ -352,13 +352,13 @@ btnUpdate.addEventListener('click', async () => {
         }
     });
     
-    const ip = ipInput.value;
-    
+    const serial_port = serialPortInput.value;
+
     try {
-        await fetch('/api/update_plot', {
+        const response = await fetch('/api/update_plot', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ equations: eqArray, colors: colorArray, esp32_ip: ip })
+            body: JSON.stringify({ equations: eqArray, colors: colorArray, serial_port: serial_port })
         });
         cubeGroup.rotation.y = 0; // Reset rotation so user can see front view
     } catch (e) {
