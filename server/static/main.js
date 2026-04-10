@@ -137,7 +137,6 @@ const connectWebSocket = () => {
 
     ws.onopen = () => {
         console.log("WebSocket connected.");
-        document.getElementById('hardware-status-dot').className = 'status-indicator connected';
     };
 
     ws.onmessage = (event) => {
@@ -148,7 +147,7 @@ const connectWebSocket = () => {
     };
 
     ws.onclose = () => {
-        document.getElementById('hardware-status-dot').className = 'status-indicator';
+        console.log("WebSocket disconnected. Reconnecting...");
         setTimeout(connectWebSocket, 2000); // Auto reconnect
     };
 };
@@ -376,18 +375,14 @@ btnStream.addEventListener('click', async () => {
             body: JSON.stringify({ stream: isStreaming })
         });
         
-        const statusDot = document.getElementById('hardware-status-dot');
+        const streamStatus = document.getElementById('stream-status');
         
         if (isStreaming) {
             btnStream.classList.add('active');
-            btnStream.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2" ry="2"/></svg> Stop Streaming`;
-            statusDot.className = 'status-indicator streaming';
-            statusDot.nextElementSibling.innerText = "Streaming via UDP";
+            streamStatus.className = 'status-indicator streaming';
         } else {
             btnStream.classList.remove('active');
-            btnStream.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg> Stream to Hardware`;
-            statusDot.className = 'status-indicator connected'; // assume ws still connected
-            statusDot.nextElementSibling.innerText = "Hardware Ready";
+            streamStatus.className = 'status-indicator';
         }
     } catch (e) {
         console.error("Failed to toggle stream", e);

@@ -1,6 +1,6 @@
-# HoloPlot Studio PRO: 3D LED Voxel Controller
+# Tesseract Plot Studio: 3D LED Voxel Controller
 
-HoloPlot Studio PRO is an advanced, high-performance software suite and firmware architecture designed to control a physical 16x16x16 (4096 LED) pseudo-holographic matrix. 
+Tesseract Plot Studio is an advanced, high-performance software suite and firmware architecture designed to control a physical 8x8x8 (512 LED) pseudo-holographic matrix. 
 
 The project allows users to render, animate, and customize multi-layered mathematical 3D plots in a real-time web simulator, and seamlessly stream that data to physical LED hardware over a local network.
 
@@ -73,6 +73,10 @@ layout:
 right:  vn,gnd,d13,d12,d14,d27,d26,d25,d33,d32,d35,d34,vn,vp,en
 left:   3v3,gnd,d15,d2,d4,d16,d17,d5,d18,d19,d21,rx0,tx0,d22,
 
+
+                    ┌──────────┐
+                    │  USB-C   │
+                    └──────────┘
        Left                              Right
       ┌─────┐                          ┌─────┐
   1   │ 3V3 │                          │ VIN │   1
@@ -91,6 +95,4 @@ left:   3v3,gnd,d15,d2,d4,d16,d17,d5,d18,d19,d21,rx0,tx0,d22,
  14   │ D22 │                          │ VP  │  14  ❌ input only
  15   │ D23 │ ← Strip 8                │ EN  │  15
       └─────┘                          └─────┘
-                  ┌──────────┐
-                  │  USB-C   │
-                  └──────────┘
+  
