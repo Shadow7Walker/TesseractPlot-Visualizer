@@ -201,27 +201,23 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
 
 def send_frame_to_esp32(voxels: np.ndarray):
     """
-    Sends the 8x8x8 voxel array to the ESP32 via USB Serial.
-    Splits the data into 8 packets. To match physical vertical tubes, 
-    each packet contains one X-plane (8 tubes of 8 LEDs).
+    Sends a single strip of 8 LEDs to the ESP32 via USB Serial.
+    Extracts the first column (x=0, y=0, z=0..7) from the voxel grid.
+    Packet format: 1 byte header (0x00) + 24 bytes RGB = 25 bytes total.
     """
     global active_serial
     if not active_serial or not active_serial.is_open:
         return
     
-    # Vectorized zig-zag Z axis on odd Y rows
-    voxels_zig_zag = voxels.copy()
-    voxels_zig_zag[:, 1::2, :, :] = voxels_zig_zag[:, 1::2, ::-1, :]
-    
-    for x in range(CUBE_SIZE):
-        packet_data = bytearray([x]) + voxels_zig_zag[x].tobytes()
-        try:
-            active_serial.write(packet_data)
-        except Exception as e:
-            print(f"Serial write error: {e}")
-            active_serial.close()
-            active_serial = None
-            break
+    # Extract the first vertical column: x=0, y=0, z=[0..7]
+    strip_data = voxels[0, 0, :, :]  # Shape: (8, 3)
+    packet_data = bytearray([0]) + strip_data.tobytes()  # 25 bytes
+    try:
+        active_serial.write(packet_data)
+    except Exception as e:
+        print(f"Serial write error: {e}")
+        active_serial.close()
+        active_serial = None
 
 @app.post("/api/update_plot")
 async def update_plot(config: PlotConfig):
