@@ -201,23 +201,25 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
 
 def send_frame_to_esp32(voxels: np.ndarray):
     """
-    Sends a single strip of 8 LEDs to the ESP32 via USB Serial.
-    Extracts the first column (x=0, y=0, z=0..7) from the voxel grid.
-    Packet format: 1 byte header (0x00) + 24 bytes RGB = 25 bytes total.
+    Sends the 8x8x8 voxel array to the ESP32 via USB Serial.
+    Sends 8 packets (one per strip/X-plane), each 193 bytes:
+      1 byte chunk index + 64 voxels * 3 RGB = 193 bytes.
+    The firmware handles physical LED mapping (73-LED skip pattern + zigzag).
     """
     global active_serial
     if not active_serial or not active_serial.is_open:
         return
     
-    # Extract the first vertical column: x=0, y=0, z=[0..7]
-    strip_data = voxels[0, 0, :, :]  # Shape: (8, 3)
-    packet_data = bytearray([0]) + strip_data.tobytes()  # 25 bytes
-    try:
-        active_serial.write(packet_data)
-    except Exception as e:
-        print(f"Serial write error: {e}")
-        active_serial.close()
-        active_serial = None
+    for x in range(CUBE_SIZE):
+        plane_data = voxels[x]  # Shape: (8, 8, 3) = 64 voxels
+        packet_data = bytearray([x]) + plane_data.tobytes()  # 1 + 192 = 193 bytes
+        try:
+            active_serial.write(packet_data)
+        except Exception as e:
+            print(f"Serial write error: {e}")
+            active_serial.close()
+            active_serial = None
+            break
 
 @app.post("/api/update_plot")
 async def update_plot(config: PlotConfig):

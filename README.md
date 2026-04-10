@@ -68,3 +68,29 @@ Navigate to `http://localhost:8000/static/index.html` in any modern web browser.
 Enter mathematical volumes, pick colors, hit **Render**, and when you're ready, toggle **Stream to Hardware**!
 
 eg: try (x**2 + y**2 + z**2)<t and (x**2 + y**2 + z**2)>t-7
+
+layout:
+right:  vn,gnd,d13,d12,d14,d27,d26,d25,d33,d32,d35,d34,vn,vp,en
+left:   3v3,gnd,d15,d2,d4,d16,d17,d5,d18,d19,d21,rx0,tx0,d22,
+
+       Left                              Right
+      ┌─────┐                          ┌─────┐
+  1   │ 3V3 │                          │ VIN │   1
+  2   │ GND │                          │ GND │   2
+  3   │ D15 │                          │ D13 │   3  ← Strip 1
+  4   │ D2  │ ← Strip 5                │ D12 │   4  ⚠️ skip
+  5   │ D4  │                          │ D14 │   5  ← Strip 2
+  6   │ D16 │ ← Strip 6 (yours!)       │ D27 │   6
+  7   │ D17 │                          │ D26 │   7  ← Strip 3
+  8   │ D5  │                          │ D25 │   8
+  9   │ D18 │                          │ D33 │   9  ← Strip 4
+ 10   │ D19 │ ← Strip 7                │ D32 │  10
+ 11   │ D21 │                          │ D35 │  11  ❌ input only
+ 12   │ RX0 │ ❌ serial                │ D34 │  12  ❌ input only
+ 13   │ TX0 │ ❌ serial                │ VN  │  13  ❌ input only
+ 14   │ D22 │                          │ VP  │  14  ❌ input only
+ 15   │ D23 │ ← Strip 8                │ EN  │  15
+      └─────┘                          └─────┘
+                  ┌──────────┐
+                  │  USB-C   │
+                  └──────────┘
