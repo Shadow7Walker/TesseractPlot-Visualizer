@@ -193,8 +193,31 @@ const updateVoxels = (flatArray) => {
 // API Interactions
 const btnUpdate = document.getElementById('btn-update');
 const btnStream = document.getElementById('btn-stream');
+const tabBtns = document.querySelectorAll('.tab-btn');
 const serialPortInput = document.getElementById('serial-port');
+const usbSettings = document.getElementById('usb-settings');
+const wifiSettings = document.getElementById('wifi-settings');
 let isStreaming = false;
+let selectedMode = 'usb';
+
+// Handle Tab Switching
+tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        if (isStreaming) return; // Prevent switching while active
+        
+        selectedMode = btn.dataset.mode;
+        
+        // UI Updates
+        tabBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        
+        usbSettings.style.display = selectedMode === 'usb' ? 'block' : 'none';
+        wifiSettings.style.display = selectedMode === 'wifi' ? 'block' : 'none';
+        
+        const modeLabel = selectedMode === 'usb' ? 'USB' : 'WiFi';
+        btnStream.innerHTML = `<span class="status-indicator" id="stream-status"></span> Start ${modeLabel} Streaming`;
+    });
+});
 
 // Manage dynamic equation fields
 const container = document.getElementById('equations-container');
@@ -357,7 +380,7 @@ btnUpdate.addEventListener('click', async () => {
         const response = await fetch('/api/update_plot', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ equations: eqArray, colors: colorArray, serial_port: serial_port })
+            body: JSON.stringify({ equations: eqArray, colors: colorArray })
         });
         cubeGroup.rotation.y = 0; // Reset rotation so user can see front view
     } catch (e) {
@@ -367,25 +390,35 @@ btnUpdate.addEventListener('click', async () => {
 
 btnStream.addEventListener('click', async () => {
     isStreaming = !isStreaming;
+    const port = selectedMode === 'usb' ? serialPortInput.value : document.getElementById('wifi-ip').value;
     
     try {
-        await fetch('/api/toggle_stream', {
+        const res = await fetch('/api/toggle_stream', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ stream: isStreaming })
+            body: JSON.stringify({ stream: isStreaming, mode: selectedMode, port: port })
         });
+        const result = await res.json();
+        
+        if (result.status === 'error') {
+            alert('Connection failed: ' + result.message);
+            isStreaming = false;
+            return;
+        }
         
         const streamStatus = document.getElementById('stream-status');
+        const modeLabel = selectedMode === 'usb' ? 'USB' : 'WiFi';
         
         if (isStreaming) {
             btnStream.classList.add('active');
-            streamStatus.className = 'status-indicator streaming';
+            btnStream.innerHTML = `<span class="status-indicator streaming" id="stream-status"></span> Stop ${modeLabel} Streaming`;
         } else {
             btnStream.classList.remove('active');
-            streamStatus.className = 'status-indicator';
+            btnStream.innerHTML = `<span class="status-indicator" id="stream-status"></span> Start ${modeLabel} Streaming`;
         }
     } catch (e) {
         console.error("Failed to toggle stream", e);
+        isStreaming = false;
     }
 });
 

@@ -1,79 +1,46 @@
-# Tesseract Plot Studio: 3D LED Voxel Controller
+# Tesseract Plot Studio: Pro 8x8x8 Voxel Controller
 
-Tesseract Plot Studio is an advanced, high-performance software suite and firmware architecture designed to control a physical 8x8x8 (512 LED) pseudo-holographic matrix. 
-
-The project allows users to render, animate, and customize multi-layered mathematical 3D plots in a real-time web simulator, and seamlessly stream that data to physical LED hardware over a local network.
+Tesseract Plot Studio is a high-performance 3D visualization suite designed to control an 8x8x8 pseudo-holographic LED matrix. It features a real-time "Digital Twin" simulator and high-speed streaming capabilities for physical hardware.
 
 ## 🌟 Core Features
 
-- **Universal 3D Math Engine**: Powered by Python's `numpy`, the backend breaks free of standard `z = f(x,y)` limitations. You can graph across any plane (`x=`, `y=`, `z=`) interchangeably or combine them.
-- **Volumetric Implicit Geometry**: Native support for inequalities (e.g., `x**2 + y**2 + z**2 < 16`) allows you to effortlessly render solid 3D geometric shapes like spheres, cones, and cylinders in space.
-- **Desmos-Style Layering**: Render multiple intersecting plots simultaneously. The UI dynamically supports adding layers, each independently evaluated and composited into the matrix.
-- **Interactive Color Picking**: Every equation layer features a native HTML5 color picker. Easily map distinct `#HEX` colors to specific mathematical volumes for clean visual separation.
-- **Physics Timeline (`t`) & Playback**: A continuous, animated time variable `t` permeates all equations. Smoothly scrub through time, pause visualizations mid-frame to inspect them, or distort playback speed from `-3.0x` to `+5.0x`.
-- **Live "Digital Twin" Simulator**: A responsive, dark-themed Web App built on **Three.js** accurately mimics the 16x16x16 physical matrix (complete with transparent tubes). Evaluate LED states, Ampere draw estimates, and physical voxel paths *before* turning on the physical hardware.
+- **Dual-Mode Streaming**: Seamlessly switch between **USB-C Serial (921,600 Baud)** for zero-latency hardwired control and **WiFi UDP** for wireless freedom.
+- **Universal 3D Math Engine**: Graph any mathematical volume across `x`, `y`, or `z` planes using vectorized `numpy` evaluation.
+- **Volumetric Implicit Geometry**: Native support for inequalities (e.g., `x**2 + y**2 + z**2 < 16`) to render solid geometric volumes.
+- **Physics Timeline (`t`)**: A continuous time variable allows for smooth 3D animations, with playback controls ranging from -3.0x to +5.0x.
+- **Digital Twin Simulator**: Built on **Three.js**, the UI accurately mimics the physical 8-strip matrix, including reflections and power draw estimates.
 
 ---
 
 ## 🏗️ System Architecture
 
-The project is elegantly divided into three independent layers working in perfect unison:
+### 1. Dual-Protocol Backend (`server/app.py`)
+- Evaluates mathematical strings into discrete RGB voxel matrices at ~30 FPS.
+- Supports **Serial Binary Streaming** (1 header byte + 192 RGB bytes per chunk).
+- Supports **UDP Network Streaming** for wireless ESP32 installations.
 
-### 1. The FastAPI Backend (`server/app.py`)
-- Takes arbitrary string equations and safely evaluates them against an absolute `[-5.0, 5.0]` 3-dimensional coordinate space.
-- Calculates distances, mappings, and volume intersections at roughly 30 to 60 frames per second using vectorized numpy arrays.
-- Maintains a stateful timeline (`t`) via a native Python `asyncio` background lifespan context.
-- Packages final byte matrices into custom UDP payloads structured specifically for hardware parsing efficiency.
+### 2. Interactive Web UI (`server/static/`)
+- Pure HTML/CSS/JS with a dark-mode, glassmorphic aesthetic.
+- Features a **Logic-Lock** tabbed interface for clear separation between USB and WiFi hardware targets.
 
-### 2. The Interactive Web UI (`server/static/`)
-- Pure HTML, modern CSS, and vanilla JS (`main.js`). No build steps or Node framework bloat required.
-- Maintains a fully asynchronous WebSocket connection to the Python backend to display real-time physical states with near-zero latency.
-- Completely localized (Three.js and OrbitControls operate offline).
-
-### 3. ESP32 Parallel Hardware Firmware (`esp32_firmware/src/main.cpp`)
-- Built on the legendary **FastLED** library.
-- Due to the massive bandwidth required by 4096 LEDs, the firmware is configured to split data output perfectly across **16 parallel GPIO pins**. Each pin independently drives 256 LEDs.
-- Runs an optimized UDP packet listener. The backend maps physical wire routing (vertical zig-zags) so the microcontroller simply dumps incoming 768-byte sequential chunks directly into hardware memory without expensive math.
+### 3. ESP32 Dual-Mode Firmware (`esp32_firmware_dual.ino`)
+- **Zigzag & Skip Mapping**: Specifically designed for a physical build using 8 strips of 73 LEDs each.
+- **Protocol**: Maps 64 logical voxels into 73 physical LEDs per strip (1 skip + 8 active pattern).
+- **Auto-Connect**: Asynchronous WiFi handling allows USB streaming to work even if the network is unavailable.
 
 ---
 
-## 🔌 Hardware Construction Guidelines
+## 🔌 Hardware Construction
 
-To build the 16x16x16 physical cube correctly, adhere to these critical constraints:
+### Strip Assembly (8 Strips)
+Each physical strip contains **73 LEDs** configured as a vertical zigzag:
+- **Pattern**: `[Skip LED] -> [8 Active LEDs ↑] -> [Skip LED] -> [8 Active LEDs ↓] ...`
+- **Total**: 9 skip LEDs (for tube-to-tube corners) and 64 active LEDs per strip.
 
-1. **LED Specs:** Use WS2812B or SK6812 IP30 strips spaced at 100 LEDs/meter to fit exactly 16 LEDs into a 16cm transparent acrylic tube.
-2. **Parallel Wiring:** You MUST wire 16 independent data wires from 16 ESP32 output pins to the start of each of the 16 individual planes. Do not attempt a single 4096 daisy chain (framerate drops to <8 FPS).
-3. **5V Level Shifting:** The ESP32 logic is 3.3V. You must route the 16 data channels through an SN74AHCT125N (or similar) level shifter to boost them to the 5V required by the LEDs.
-4. **Heavy Power Injection:** A 40A to 60A 5V power supply is required. **You must inject 5V and GND directly from thick copper busbars into the start and end of *every single 16-led strip***. Do not pass main power through the thin copper pads of the strip, or they will ignite.
+### Wiring Layout (Pins chosen for soldering clearance)
+The firmware is optimized for the following ESP32 pins to allow maximum space between solder joints:
 
----
-
-## 🚀 Getting Started
-
-### 1. Flash the ESP32
-Open `esp32_firmware/src/main.cpp` using PlatformIO or Arduino IDE.
-Update the WiFi `ssid` and `password`. Attach your LEDs and flash. Give it a static IP on your router if possible.
-
-### 2. Start the Backend Server
-Requires Python 3.10+ and the `uv` package manager.
-```bash
-cd ./server/
-uv sync
-uv run uvicorn app:app --port 8000
 ```
-*(If you do not have `uv`, install it via `pip install uv` or visit astral.sh)*
-
-### 3. Open the Dashboard
-Navigate to `http://localhost:8000/static/index.html` in any modern web browser.
-Enter mathematical volumes, pick colors, hit **Render**, and when you're ready, toggle **Stream to Hardware**!
-
-eg: try (x**2 + y**2 + z**2)<t and (x**2 + y**2 + z**2)>t-7
-
-layout:
-right:  vn,gnd,d13,d12,d14,d27,d26,d25,d33,d32,d35,d34,vn,vp,en
-left:   3v3,gnd,d15,d2,d4,d16,d17,d5,d18,d19,d21,rx0,tx0,d22,
-
-
                     ┌──────────┐
                     │  USB-C   │
                     └──────────┘
@@ -81,18 +48,31 @@ left:   3v3,gnd,d15,d2,d4,d16,d17,d5,d18,d19,d21,rx0,tx0,d22,
       ┌─────┐                          ┌─────┐
   1   │ 3V3 │                          │ VIN │   1
   2   │ GND │                          │ GND │   2
-  3   │ D15 │                          │ D13 │   3  ← Strip 1
-  4   │ D2  │ ← Strip 5                │ D12 │   4  ⚠️ skip
-  5   │ D4  │                          │ D14 │   5  ← Strip 2
-  6   │ D16 │ ← Strip 6 (yours!)       │ D27 │   6
-  7   │ D17 │                          │ D26 │   7  ← Strip 3
+  3   │ D15 │                        ★ │ D13 │   3  ← Strip 1
+  4 ★ │ D2  │ ← Strip 5               │ D12 │   4  ⚠️ skip
+  5   │ D4  │                        ★ │ D14 │   5  ← Strip 2
+  6 ★ │ D16 │ ← Strip 6 (yours!)      │ D27 │   6
+  7   │ D17 │                        ★ │ D26 │   7  ← Strip 3
   8   │ D5  │                          │ D25 │   8
-  9   │ D18 │                          │ D33 │   9  ← Strip 4
- 10   │ D19 │ ← Strip 7                │ D32 │  10
+  9   │ D18 │                        ★ │ D33 │   9  ← Strip 4
+ 10 ★ │ D19 │ ← Strip 7               │ D32 │  10
  11   │ D21 │                          │ D35 │  11  ❌ input only
  12   │ RX0 │ ❌ serial                │ D34 │  12  ❌ input only
  13   │ TX0 │ ❌ serial                │ VN  │  13  ❌ input only
  14   │ D22 │                          │ VP  │  14  ❌ input only
- 15   │ D23 │ ← Strip 8                │ EN  │  15
+ 15 ★ │ D23 │ ← Strip 8               │ EN  │  15
       └─────┘                          └─────┘
-  
+```
+
+---
+
+## 🚀 Getting Started
+
+1. **Flash Firmware**: Open `esp32_firmware_dual.ino`. Enter your WiFi SSID and set password to `pass1234`.
+2. **Launch Server**:
+   ```bash
+   cd ./server/
+   uv run uvicorn app:app --port 8000
+   ```
+3. **Open Simulator**: Go to `http://localhost:8000/static/index.html`.
+4. **Link Hardware**: Select the **USB** or **WiFi** tab, click **Start Streaming**, and watch the math come to life.

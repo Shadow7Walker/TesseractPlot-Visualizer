@@ -3,17 +3,17 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import numpy as np
 import serial
+import socket
 import asyncio
 from contextlib import asynccontextmanager
 import ast
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Create the streaming task
-    init_serial(SERIAL_PORT)
+    # Startup: Create the rendering task
     task = asyncio.create_task(stream_task())
     yield
-    # Shutdown: Cancel the task
+    # Shutdown: Cancel the task and close any open serial connection
     task.cancel()
     if active_serial and active_serial.is_open:
         active_serial.close()
@@ -23,29 +23,67 @@ app = FastAPI(lifespan=lifespan)
 # Mount the static directory for the Web UI
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# ESP32 Serial Configuration
-SERIAL_PORT = "COM3" # Default Windows fallback, update via UI
+# ESP32 Connection State
 active_serial = None
+active_udp_sock = None
+WIFI_TARGET = None  # (ip, port)
+stream_mode = "usb"  # "usb" or "wifi"
 CUBE_SIZE = 8
+WIFI_PORT = 8888
 
-def init_serial(port_name):
-    global active_serial, SERIAL_PORT
-    SERIAL_PORT = port_name
-    if active_serial and active_serial.is_open:
-        active_serial.close()
-    
-    if port_name and port_name.strip() and port_name != "None":
+def open_serial(port_name):
+    """Open a serial connection to the given COM port. Returns True on success."""
+    global active_serial
+    close_serial()
+    if port_name and port_name.strip():
         try:
             active_serial = serial.Serial(port_name, 921600, timeout=1)
-            print(f"Connected to {port_name} at 921600 baud.")
+            print(f"Serial connected: {port_name} @ 921600 baud")
+            return True
         except Exception as e:
-            print(f"Could not connect to {port_name}: {e}")
+            print(f"Serial connection failed ({port_name}): {e}")
             active_serial = None
+            return False
+    return False
+
+def close_serial():
+    """Close any open serial connection."""
+    global active_serial
+    if active_serial and active_serial.is_open:
+        active_serial.close()
+        print("Serial connection closed.")
+    active_serial = None
+
+def open_wifi(ip):
+    """Initialize a UDP socket for WiFi streaming. Returns True on success."""
+    global active_udp_sock, WIFI_TARGET
+    close_wifi()
+    if ip and ip.strip():
+        try:
+            active_udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            # Set to non-blocking to prevent frame delay on network hiccups
+            active_udp_sock.setblocking(False)
+            WIFI_TARGET = (ip, WIFI_PORT)
+            print(f"WiFi socket ready for target {ip}:{WIFI_PORT}")
+            return True
+        except Exception as e:
+            print(f"WiFi socket creation failed: {e}")
+            active_udp_sock = None
+            return False
+    return False
+
+def close_wifi():
+    """Close the UDP socket."""
+    global active_udp_sock, WIFI_TARGET
+    if active_udp_sock:
+        active_udp_sock.close()
+        print("WiFi connection closed.")
+    active_udp_sock = None
+    WIFI_TARGET = None
 
 class PlotConfig(BaseModel):
     equations: list[str]
     colors: list[str]
-    serial_port: str
 
 # Global state
 current_voxels = np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 3), dtype=np.uint8)
@@ -201,31 +239,42 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
 
 def send_frame_to_esp32(voxels: np.ndarray):
     """
-    Sends the 8x8x8 voxel array to the ESP32 via USB Serial.
+    Sends the 8x8x8 voxel array to the ESP32 via either USB Serial or WiFi UDP.
     Sends 8 packets (one per strip/X-plane), each 193 bytes:
       1 byte chunk index + 64 voxels * 3 RGB = 193 bytes.
-    The firmware handles physical LED mapping (73-LED skip pattern + zigzag).
     """
-    global active_serial
-    if not active_serial or not active_serial.is_open:
-        return
+    global active_serial, active_udp_sock, WIFI_TARGET, stream_mode
     
-    for x in range(CUBE_SIZE):
-        plane_data = voxels[x]  # Shape: (8, 8, 3) = 64 voxels
-        packet_data = bytearray([x]) + plane_data.tobytes()  # 1 + 192 = 193 bytes
-        try:
-            active_serial.write(packet_data)
-        except Exception as e:
-            print(f"Serial write error: {e}")
-            active_serial.close()
-            active_serial = None
-            break
+    if stream_mode == "usb":
+        if not active_serial or not active_serial.is_open:
+            return
+        
+        for x in range(CUBE_SIZE):
+            plane_data = voxels[x]
+            packet_data = bytearray([x]) + plane_data.tobytes()
+            try:
+                active_serial.write(packet_data)
+            except Exception as e:
+                print(f"Serial write error: {e}")
+                close_serial()
+                break
+                
+    elif stream_mode == "wifi":
+        if not active_udp_sock or not WIFI_TARGET:
+            return
+            
+        for x in range(CUBE_SIZE):
+            plane_data = voxels[x]
+            packet_data = bytearray([x]) + plane_data.tobytes()
+            try:
+                active_udp_sock.sendto(packet_data, WIFI_TARGET)
+            except Exception as e:
+                # Common in non-blocking UDP if buffer is full
+                pass
 
 @app.post("/api/update_plot")
 async def update_plot(config: PlotConfig):
-    global current_equations, current_colors, SERIAL_PORT, t
-    if config.serial_port != SERIAL_PORT:
-        init_serial(config.serial_port)
+    global current_equations, current_colors
     current_equations = config.equations
     current_colors = config.colors
     return {"status": "success", "message": "Plot updated"}
@@ -243,9 +292,28 @@ async def update_time(config: TimeConfig):
 
 @app.post("/api/toggle_stream")
 async def toggle_stream(data: dict):
-    global stream_to_hardware
-    stream_to_hardware = data.get("stream", False)
-    return {"status": "success", "streaming": stream_to_hardware}
+    global stream_to_hardware, stream_mode
+    want_stream = data.get("stream", False)
+    mode = data.get("mode", "usb")
+    port = data.get("port", "")
+    
+    if want_stream:
+        stream_mode = mode
+        if mode == "usb":
+            success = open_serial(port)
+            if not success:
+                return {"status": "error", "message": f"Could not open Serial {port}"}
+        elif mode == "wifi":
+            success = open_wifi(port)
+            if not success:
+                return {"status": "error", "message": f"Could not init WiFi at {port}"}
+        stream_to_hardware = True
+    else:
+        stream_to_hardware = False
+        close_serial()
+        close_wifi()
+    
+    return {"status": "success", "streaming": stream_to_hardware, "mode": stream_mode}
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -259,7 +327,7 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         print(f"WebSocket Client disconnected: {e}")
 
-# Background task for rendering animations and UDP streaming
+# Background task for rendering animations and hardware streaming
 async def stream_task():
     global current_voxels, t, current_equations, current_colors
     while True:
