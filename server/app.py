@@ -93,6 +93,8 @@ stream_to_hardware = False
 t = 0.0
 is_playing = True
 playback_speed = 1.0
+frame_seq = 0
+last_sent_voxels = None
 
 # Pre-compute static geometry grids to save CPU during rapid frame calculations
 COORD_MIN, COORD_MAX = 0.0, 5.0
@@ -237,21 +239,28 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
             
     return voxels
 
-def send_frame_to_esp32(voxels: np.ndarray):
+async def send_frame_to_esp32(voxels: np.ndarray):
     """
     Sends the 8x8x8 voxel array to the ESP32 via either USB Serial or WiFi UDP.
-    Sends 8 packets (one per strip/X-plane), each 193 bytes:
-      1 byte chunk index + 64 voxels * 3 RGB = 193 bytes.
+    Sends 8 packets (one per strip/X-plane), each 194 bytes:
+      1 byte frame sync + 1 byte chunk index + 64 voxels * 3 RGB = 194 bytes.
     """
-    global active_serial, active_udp_sock, WIFI_TARGET, stream_mode
+    global active_serial, active_udp_sock, WIFI_TARGET, stream_mode, frame_seq, last_sent_voxels
     
+    # Only increment frame sequence if the plot actually changed physically.
+    # This acts as an automatic protocol "healing" mechanism. If the ESP32 loses a chunk
+    # while the plot is stationary, the next duplicate frame blast allows it to patch the holes.
+    if last_sent_voxels is None or not np.array_equal(voxels, last_sent_voxels):
+        frame_seq = (frame_seq + 1) % 256
+        last_sent_voxels = voxels.copy()
+
     if stream_mode == "usb":
         if not active_serial or not active_serial.is_open:
             return
         
         for x in range(CUBE_SIZE):
             plane_data = voxels[x]
-            packet_data = bytearray([x]) + plane_data.tobytes()
+            packet_data = bytearray([frame_seq, x]) + plane_data.tobytes()
             try:
                 active_serial.write(packet_data)
             except Exception as e:
@@ -265,7 +274,7 @@ def send_frame_to_esp32(voxels: np.ndarray):
             
         for x in range(CUBE_SIZE):
             plane_data = voxels[x]
-            packet_data = bytearray([x]) + plane_data.tobytes()
+            packet_data = bytearray([frame_seq, x]) + plane_data.tobytes()
             try:
                 active_udp_sock.sendto(packet_data, WIFI_TARGET)
             except Exception as e:
@@ -339,7 +348,7 @@ async def stream_task():
         current_voxels = calculate_plot(current_equations, current_colors, t)
         
         if stream_to_hardware:
-            send_frame_to_esp32(current_voxels)
+            await send_frame_to_esp32(current_voxels)
             
-        # Run rendering loop at roughly ~30fps 
-        await asyncio.sleep(1/30.0)
+        # Run rendering loop at roughly ~45fps, allowing some headroom for calc
+        await asyncio.sleep(1/45.0)

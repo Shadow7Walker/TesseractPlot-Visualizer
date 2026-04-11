@@ -19,6 +19,7 @@ unsigned int localPort = 8888;
 CRGB leds[NUM_STRIPS * NUM_LEDS_PER_STRIP];
 
 struct __attribute__((packed)) UpdatePacket {
+    uint8_t frameIndex;
     uint8_t chunkIndex;
     uint8_t rgbData[192];
 };
@@ -26,8 +27,14 @@ struct __attribute__((packed)) UpdatePacket {
 uint16_t layersReceivedMask = 0;
 unsigned long lastPacketTime = 0;
 bool firstPacketSeen = false;
+uint8_t currentFrameIndex = 0;
 
 void processPacket(UpdatePacket* packet) {
+    // If the frame index changes, drop any incomplete pieces of the old frame
+    if (packet->frameIndex != currentFrameIndex) {
+        currentFrameIndex = packet->frameIndex;
+        layersReceivedMask = 0; 
+    }
     if (packet->chunkIndex < NUM_STRIPS) {
         if (!firstPacketSeen) {
             Serial.println(">>> First Data Packet Received! Tracking heartbeat...");
@@ -106,20 +113,25 @@ void loop() {
     // In AP mode, we don't 'connect' to a router, so we don't need WL_CONNECTED status checks.
 
     // 1. Check for USB Serial packets
-    if (Serial.available() >= 193) { // Use fixed packet size check
+    if (Serial.available() >= 194) { // Use fixed packet size check
         UpdatePacket packet;
-        if (Serial.readBytes((char*)&packet, 193) == 193) {
+        if (Serial.readBytes((char*)&packet, 194) == 194) {
             processPacket(&packet);
         }
     }
 
-    // 2. Check for WiFi UDP packets (Always listen in AP mode)
+    // 2. Check for WiFi UDP packets (Drain the entire network buffer)
     int packetSize = udp.parsePacket();
-    if (packetSize == 193) {
-        UpdatePacket packet;
-        if (udp.read((char*)&packet, 193) == 193) {
+    while (packetSize > 0) {
+        if (packetSize == 194) {
+            UpdatePacket packet;
+            udp.read((char*)&packet, 194);
             processPacket(&packet);
+        } else {
+            // Discard malformed packet
+            while(udp.available()) { udp.read(); }
         }
+        packetSize = udp.parsePacket(); // Grab next packet immediately
     }
 
     // Heartbeat: Blink toggle every 100ms when streaming

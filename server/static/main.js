@@ -225,6 +225,19 @@ const btnAddEq = document.getElementById('btn-add-eq');
 const eqColors = ['#ff3c3c', '#3cff3c', '#3c3cff', '#ffff3c', '#ff3cff'];
 let eqCount = 0;
 
+// Auto-Render Logic
+const autoRenderToggle = document.getElementById('auto-render-toggle');
+let autoRenderTimeout = null;
+
+const triggerAutoRender = () => {
+    if (autoRenderToggle.checked) {
+        clearTimeout(autoRenderTimeout);
+        autoRenderTimeout = setTimeout(() => {
+            document.getElementById('btn-update').click();
+        }, 400); // 400ms debounce
+    }
+};
+
 const addEquationRow = (defaultValue = "", overrideColor = null) => {
     const row = document.createElement('div');
     row.className = 'equation-row';
@@ -242,8 +255,13 @@ const addEquationRow = (defaultValue = "", overrideColor = null) => {
     row.querySelector('.btn-remove').addEventListener('click', () => {
         if (container.children.length > 1) {
             row.remove();
+            triggerAutoRender();
         }
     });
+    
+    // Auto-render triggers
+    row.querySelector('.eq-input').addEventListener('input', triggerAutoRender);
+    row.querySelector('.eq-color').addEventListener('input', triggerAutoRender);
     
     container.appendChild(row);
     eqCount++;
