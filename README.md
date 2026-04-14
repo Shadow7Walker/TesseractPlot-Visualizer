@@ -78,4 +78,4 @@ The firmware is optimized for the following ESP32 pins to allow maximum space be
 4. **Open Simulator**: Go to `http://localhost:8000/static/index.html`.
 5. **Link Hardware**: 
    - **USB**: Select the **USB** tab, enter your COM port, and click **Start Streaming**.
-   - **WiFi**: Select the **WiFi** tab, enter **`192.168.4.1`**, and click **Start Streaming**.
+   - **WiFi**: Select the **WiFi** tab, enter **`192.168.4.1`**, and click **Start Streaming**.//
