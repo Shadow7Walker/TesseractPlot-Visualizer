@@ -97,7 +97,7 @@ frame_seq = 0
 last_sent_voxels = None
 
 # Pre-compute static geometry grids to save CPU during rapid frame calculations
-COORD_MIN, COORD_MAX = 0.0, 5.0
+COORD_MIN, COORD_MAX = 1.0, 8.0
 COORD_RANGE = COORD_MAX - COORD_MIN
 ls = np.linspace(COORD_MIN, COORD_MAX, CUBE_SIZE)
 X3, Y3, Z3 = np.meshgrid(ls, ls, ls, indexing='ij')
@@ -124,6 +124,23 @@ class RewriteLogic(ast.NodeTransformer):
             for val in node.values[1:]:
                 result = ast.BinOp(left=result, op=ast.BitOr(), right=val)
             return result
+        return node
+
+    def visit_Compare(self, node):
+        self.generic_visit(node)
+        # Convert strict equality '==' to 'abs(left - right) < 0.8' to support volumetric 
+        # thickness for all implicit & explicit geometry constraints
+        if len(node.ops) == 1 and isinstance(node.ops[0], ast.Eq):
+            sub_op = ast.BinOp(left=node.left, op=ast.Sub(), right=node.comparators[0])
+            abs_call = ast.Call(
+                func=ast.Name(id='abs', ctx=ast.Load()),
+                args=[sub_op], keywords=[]
+            )
+            new_node = ast.Compare(
+                left=abs_call, ops=[ast.Lt()], 
+                comparators=[ast.Constant(value=0.8)]
+            )
+            return ast.copy_location(new_node, node)
         return node
 
 def numpy_safe_eval(eq_str, env):
@@ -157,8 +174,12 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
         if len(h) != 6: parsed_colors.append((255, 60, 60))
         else: parsed_colors.append(tuple(int(h[i:i+2], 16) for i in (0, 2, 4)))
         
+    import re
     def clean_eq(e):
-        return e.replace('^', '**')
+        e = e.replace('^', '**')
+        # Convert standalone '=' to '==' for python eval compatibility (prevents SyntaxError on single equals)
+        e = re.sub(r'(?<![<>!=])=(?!=)', '==', e)
+        return e
 
     for idx, eq in enumerate(equations):
         try:
@@ -167,60 +188,14 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
             
             mask = np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE), dtype=bool)
 
-            # Explicit z = ...
-            if eq.startswith("z=") or eq.startswith("z ="):
-                rhs = eq.split("=", 1)[1]
-                env = dict(allowed_3d, x=X_2d, y=Y_2d, z=None)
-                Z_val = numpy_safe_eval(rhs, env)
-                if np.isscalar(Z_val): Z_val = np.full_like(X_2d, Z_val)
-                z_idx = np.round((Z_val - COORD_MIN) / COORD_RANGE * (CUBE_SIZE - 1)).astype(int)
-                valid = (z_idx >= 0) & (z_idx < CUBE_SIZE)
-                mask[I_IDX[valid], J_IDX[valid], z_idx[valid]] = True
-
-            # Explicit y = ...
-            elif eq.startswith("y=") or eq.startswith("y ="):
-                rhs = eq.split("=", 1)[1]
-                env = dict(allowed_3d, x=X_2d, z=Y_2d, y=None)
-                Y_val = numpy_safe_eval(rhs, env)
-                if np.isscalar(Y_val): Y_val = np.full_like(X_2d, Y_val)
-                y_idx = np.round((Y_val - COORD_MIN) / COORD_RANGE * (CUBE_SIZE - 1)).astype(int)
-                valid = (y_idx >= 0) & (y_idx < CUBE_SIZE)
-                mask[I_IDX[valid], y_idx[valid], J_IDX[valid]] = True
-
-            # Explicit x = ...
-            elif eq.startswith("x=") or eq.startswith("x ="):
-                rhs = eq.split("=", 1)[1]
-                env = dict(allowed_3d, y=X_2d, z=Y_2d, x=None)
-                X_val = numpy_safe_eval(rhs, env)
-                if np.isscalar(X_val): X_val = np.full_like(X_2d, X_val)
-                x_idx = np.round((X_val - COORD_MIN) / COORD_RANGE * (CUBE_SIZE - 1)).astype(int)
-                valid = (x_idx >= 0) & (x_idx < CUBE_SIZE)
-                mask[x_idx[valid], I_IDX[valid], J_IDX[valid]] = True
-
-            # Inequalities (3D evaluation)
-            elif any(op in eq for op in ['<', '>', '<=', '>=']):
-                mask_val = numpy_safe_eval(eq, allowed_3d)
-                if np.isscalar(mask_val):
-                    if mask_val: mask = np.ones_like(mask)
-                else:
-                    mask = mask_val
-
-            # Implicit equality
-            elif '=' in eq:
-                lhs, rhs = eq.split('=', 1)
-                val = numpy_safe_eval(f"abs(({lhs}) - ({rhs}))", allowed_3d)
-                if np.isscalar(val): val = np.full_like(mask, val, dtype=float)
-                mask = val < 0.8 # default implicit thickness
-            
-            # Fallback (Auto-assume explicit z)
+            # Unified 3D Volumetric Evaluation
+            # Since RewriteLogic intercepts '==' and converts it to a volumetric constraint, 
+            # and converts 'and'/'or' to '&'/'|', EVERY equation now natively computes as a boolean mask!
+            mask_val = numpy_safe_eval(eq, allowed_3d)
+            if np.isscalar(mask_val):
+                if mask_val: mask = np.ones_like(mask)
             else:
-                rhs = eq
-                env = dict(allowed_3d, x=X_2d, y=Y_2d, z=None)
-                Z_val = numpy_safe_eval(rhs, env)
-                if np.isscalar(Z_val): Z_val = np.full_like(X_2d, Z_val)
-                z_idx = np.round((Z_val - COORD_MIN) / COORD_RANGE * (CUBE_SIZE - 1)).astype(int)
-                valid = (z_idx >= 0) & (z_idx < CUBE_SIZE)
-                mask[I_IDX[valid], J_IDX[valid], z_idx[valid]] = True
+                mask = mask_val
 
             # Vectorized Matrix Color application
             base_color = parsed_colors[idx % len(parsed_colors)] if parsed_colors else (255, 255, 255)
@@ -254,12 +229,18 @@ async def send_frame_to_esp32(voxels: np.ndarray):
         frame_seq = (frame_seq + 1) % 256
         last_sent_voxels = voxels.copy()
 
+    # the floor (StripIndex = Height (Y), RowIndex = Depth (Z), LedIndex = Width (X)).
+    # We invert Mathematical X and Z axes to match specific hardware positioning,
+    # then transpose Mathematical (X, Y, Z) mapping to -> Physical (Y, Z, X).
+    hw_voxels = np.flip(voxels, axis=(0, 2))
+    hw_voxels = np.ascontiguousarray(np.transpose(hw_voxels, (1, 2, 0, 3)))
+
     if stream_mode == "usb":
         if not active_serial or not active_serial.is_open:
             return
         
         for x in range(CUBE_SIZE):
-            plane_data = voxels[x]
+            plane_data = hw_voxels[x]
             packet_data = bytearray([frame_seq, x]) + plane_data.tobytes()
             try:
                 active_serial.write(packet_data)
@@ -273,7 +254,7 @@ async def send_frame_to_esp32(voxels: np.ndarray):
             return
             
         for x in range(CUBE_SIZE):
-            plane_data = voxels[x]
+            plane_data = hw_voxels[x]
             packet_data = bytearray([frame_seq, x]) + plane_data.tobytes()
             try:
                 active_udp_sock.sendto(packet_data, WIFI_TARGET)

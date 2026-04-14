@@ -46,11 +46,11 @@ const createVoxelGrid = () => {
             for (let z = 0; z < CUBE_SIZE; z++) {
                 const mesh = new THREE.Mesh(geometry, material.clone());
                 
-                // Position relative to center, constrained explicitly to the positive octant
+                // Position relative to center: Upper Front Right octant
                 mesh.position.set(
-                    (x * voxelSpacing) + offset,
-                    (z * voxelSpacing) + offset, // Y in three.js is UP, but our data has Z as UP
-                    (y * voxelSpacing) + offset  // So mapping y(data)->z(three) and z(data)->y(three)
+                    (x * voxelSpacing) + offset, // X in three.js is Right
+                    (y * voxelSpacing) + offset, // Y in three.js is UP, mapping data Y to height
+                    (z * voxelSpacing) + offset  // Z in three.js is Front (towards face), mapping data Z to depth
                 );
                 
                 cubeGroup.add(mesh);
@@ -268,8 +268,8 @@ const addEquationRow = (defaultValue = "", overrideColor = null) => {
 };
 
 // Initial default rows
-addEquationRow("z = 4 * sin(sqrt(x**2 + y**2) - t * 2)");
-addEquationRow("z = 4 * cos(x + t)");
+addEquationRow("z = 4.5 + 3.5 * sin(sqrt((x-4.5)**2 + (y-4.5)**2) - t * 2)");
+addEquationRow("z = 4.5 + 3.5 * cos((x-4.5) + t)");
 
 btnAddEq.addEventListener('click', () => {
     addEquationRow();
@@ -281,23 +281,23 @@ btnHuygensDemo.addEventListener('click', async () => {
     eqCount = 0;
     
     const huygensEqs = [
-        { c: "#ffffff", e: "abs(x**2 + y**2 + z**2 - clip(t, 0, 3.0)**2) < 0.8" }, // Primary wavefront freezes at t=3.0
+        { c: "#ffffff", e: "abs((x-4.5)**2 + (y-4.5)**2 + (z-4.5)**2 - clip(t, 0, 3.0)**2) < 0.8" }, // Primary wavefront freezes at t=3.0
         
         // 3 Axis wavelets (Red, Green, Blue) starting at t=4.0
-        { c: "#ff3c3c", e: "abs((x - 3.0)**2 + y**2 + z**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
-        { c: "#3cff3c", e: "abs(x**2 + (y - 3.0)**2 + z**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
-        { c: "#3c3cff", e: "abs(x**2 + y**2 + (z - 3.0)**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
+        { c: "#ff3c3c", e: "abs((x-7.5)**2 + (y-4.5)**2 + (z-4.5)**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
+        { c: "#3cff3c", e: "abs((x-4.5)**2 + (y-7.5)**2 + (z-4.5)**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
+        { c: "#3c3cff", e: "abs((x-4.5)**2 + (y-4.5)**2 + (z-7.5)**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
 
         // 3 Planar diagonal wavelets (Yellow, Cyan, Magenta) 
-        { c: "#ffff3c", e: "abs((x - 2.12)**2 + (y - 2.12)**2 + z**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
-        { c: "#3cffff", e: "abs(x**2 + (y - 2.12)**2 + (z - 2.12)**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
-        { c: "#ff3cff", e: "abs((x - 2.12)**2 + y**2 + (z - 2.12)**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
+        { c: "#ffff3c", e: "abs((x-6.62)**2 + (y-6.62)**2 + (z-4.5)**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
+        { c: "#3cffff", e: "abs((x-4.5)**2 + (y-6.62)**2 + (z-6.62)**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
+        { c: "#ff3cff", e: "abs((x-6.62)**2 + (y-4.5)**2 + (z-6.62)**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
 
         // 1 Volumetric exact diagonal wavelet (White)
-        { c: "#ffffff", e: "abs((x - 1.73)**2 + (y - 1.73)**2 + (z - 1.73)**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
+        { c: "#ffffff", e: "abs((x-6.23)**2 + (y-6.23)**2 + (z-6.23)**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
 
         // Infinite Expanding Envelope
-        { c: "#00ffff", e: "abs(x**2 + y**2 + z**2 - clip(3.0 + (t-4.0), 0, 100)**2) < 0.8 and (t > 4.0)" }
+        { c: "#00ffff", e: "abs((x-4.5)**2 + (y-4.5)**2 + (z-4.5)**2 - clip(3.0 + (t-4.0), 0, 100)**2) < 0.8 and (t > 4.0)" }
     ];
     
     huygensEqs.forEach(conf => addEquationRow(conf.e, conf.c));
