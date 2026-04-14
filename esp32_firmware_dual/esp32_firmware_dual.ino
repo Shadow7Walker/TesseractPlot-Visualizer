@@ -43,12 +43,30 @@ void processPacket(UpdatePacket* packet) {
         
         lastPacketTime = millis(); 
         
+        // Identify if the current strip was installed backwards (Strips 1, 2, 5, 8 -> Indices 0, 1, 4, 7)
+        bool isBackwards = (packet->chunkIndex == 0 || packet->chunkIndex == 1 || 
+                            packet->chunkIndex == 4 || packet->chunkIndex == 7);
+
         int stripOffset = packet->chunkIndex * NUM_LEDS_PER_STRIP;
-        for (int row = 0; row < NUM_ROWS; row++) {
-            int physStart = stripOffset + 1 + (row * 9);
+        
+        for (int y = 0; y < NUM_ROWS; y++) {
+            // For backwards strips, spatial front (y=0) maps to the physical back (physRow=7)
+            int physRow = isBackwards ? (7 - y) : y;
+            int physStart = stripOffset + 1 + (physRow * 9);
+            
+            // The snake wiring dictates: Even physical rows go UP, odd go DOWN
+            bool physGoesUp = (physRow % 2 == 0);
+            
             for (int z = 0; z < NUM_ACTIVE_PER_ROW; z++) {
-                int logicalIdx = row * NUM_ACTIVE_PER_ROW + z;
-                int physZ = (row % 2 == 0) ? z : (NUM_ACTIVE_PER_ROW - 1 - z);
+                int logicalIdx = y * NUM_ACTIVE_PER_ROW + z;
+                
+                int physZ;
+                if (physGoesUp) {
+                    physZ = z; // spatial bottom (z=0) maps to physical bottom (physZ=0)
+                } else {
+                    physZ = (NUM_ACTIVE_PER_ROW - 1 - z); // spatial bottom (z=0) maps to physical bottom (physZ=7)
+                }
+                
                 leds[physStart + physZ] = CRGB(
                     packet->rgbData[logicalIdx * 3],
                     packet->rgbData[logicalIdx * 3 + 1],
@@ -92,15 +110,15 @@ void setup() {
     Serial.println(WiFi.softAPIP());
     Serial.println("USB Serial Buffer expanded to 2048 bytes.");
 
-    // FastLED Setup (D15 for Strip 5)
-    FastLED.addLeds<WS2812B, 13, GRB>(leds, 0 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
-    FastLED.addLeds<WS2812B, 14, GRB>(leds, 1 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
-    FastLED.addLeds<WS2812B, 26, GRB>(leds, 2 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
-    FastLED.addLeds<WS2812B, 33, GRB>(leds, 3 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
-    FastLED.addLeds<WS2812B, 15, GRB>(leds, 4 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP); 
-    FastLED.addLeds<WS2812B, 16, GRB>(leds, 5 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
-    FastLED.addLeds<WS2812B, 19, GRB>(leds, 6 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
-    FastLED.addLeds<WS2812B, 23, GRB>(leds, 7 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP);
+    // FastLED Setup (Using 100% safe, non-strapping pins to prevent boot-glitches)
+    FastLED.addLeds<WS2812B, 32, GRB>(leds, 0 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP); // Strip 1 (was 13)
+    FastLED.addLeds<WS2812B, 27, GRB>(leds, 1 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP); // Strip 2 (was 14)
+    FastLED.addLeds<WS2812B, 26, GRB>(leds, 2 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP); // Strip 3 (unchanged)
+    FastLED.addLeds<WS2812B, 33, GRB>(leds, 3 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP); // Strip 4 (unchanged)
+    FastLED.addLeds<WS2812B, 17, GRB>(leds, 4 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP); // Strip 5 (was 15/4)
+    FastLED.addLeds<WS2812B, 16, GRB>(leds, 5 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP); // Strip 6 (unchanged)
+    FastLED.addLeds<WS2812B, 19, GRB>(leds, 6 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP); // Strip 7 (unchanged)
+    FastLED.addLeds<WS2812B, 22, GRB>(leds, 7 * NUM_LEDS_PER_STRIP, NUM_LEDS_PER_STRIP); // Strip 8 (was 23)
 
     FastLED.setBrightness(128);
     FastLED.clear();

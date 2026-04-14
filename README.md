@@ -41,27 +41,27 @@ Each physical strip contains **73 LEDs** configured as a vertical zigzag:
 The firmware is optimized for the following ESP32 pins to allow maximum space between solder joints:
 
 ```
-                    ┌──────────┐
-                    │  USB-C   │
-                    └──────────┘
-       Left                              Right
-      ┌─────┐                          ┌─────┐
-  1   │ 3V3 │                          │ VIN │   1
-  2   │ GND │                          │ GND │   2
-  3   │ D15 │ ← Strip 5                │ D13 │   3  ← Strip 1
-  4   │ D2  │  Status LED              │ D12 │   4   skip
-  5   │ D4  │                          │ D14 │   5  ← Strip 2
-  6   │ D16 │ ← Strip 6 (yours!)       │ D27 │   6
-  7   │ D17 │                          │ D26 │   7  ← Strip 3
-  8   │ D5  │                          │ D25 │   8
-  9   │ D18 │                          │ D33 │   9  ← Strip 4
- 10   │ D19 │ ← Strip 7                │ D32 │  10
- 11   │ D21 │                          │ D35 │  11   input only
- 12   │ RX0 │  serial                  │ D34 │  12   input only
- 13   │ TX0 │  serial                  │ VN  │  13   input only
- 14   │ D22 │                          │ VP  │  14   input only
- 15   │ D23 │ ← Strip 8                │ EN  │  15
-      └─────┘                          └─────┘
+                     ┌──────────┐
+                     │  USB-C   │
+                     └──────────┘
+        Left                              Right
+       ┌─────┐                          ┌─────┐
+   1   │ 3V3 │                          │ VIN │   1
+   2   │ GND │                          │ GND │   2
+   3   │ D15 │                          │ D13 │   3  
+   4   │ D2  │  Status                  │ D12 │   4  
+   5   │ D4  │                          │ D14 │   5  
+   6   │ D16 │ ← Strip 6                │ D27 │   6  ← Strip 2(backwards)
+   7   │ D17 │ ← Strip 5(backwards)     │ D26 │   7  ← Strip 3
+   8   │ D5  │                          │ D25 │   8
+   9   │ D18 │                          │ D33 │   9  ← Strip 4
+  10   │ D19 │ ← Strip 7                │ D32 │  10  ← Strip 1(backwards)
+  11   │ D21 │                          │ D35 │  11   
+  12   │ RX0 │                          │ D34 │  12   
+  13   │ TX0 │                          │ VN  │  13   
+  14   │ D22 │ ← Strip 8(backwards)     │ VP  │  14   
+  15   │ D23 │                          │ EN  │  15
+       └─────┘                          └─────┘
 ```
 
 ---
