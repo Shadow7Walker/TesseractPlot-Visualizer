@@ -1,7 +1,7 @@
 // 3D Visualizer Setup
-const CUBE_SIZE = 8;
+let CUBE_SIZE = 8;
 const voxelSpacing = 1.2;
-const voxels = []; // 3D array of meshes
+let voxels = []; // 3D array of meshes
 
 // Three.js SCENE
 const scene = new THREE.Scene();
@@ -27,24 +27,29 @@ scene.add(dirLight);
 const cubeGroup = new THREE.Group();
 scene.add(cubeGroup);
 
-// Group to hold the virtual mirror clones
-const mirrorsGroup = new THREE.Group();
-scene.add(mirrorsGroup);
+// Shared geometry for all voxel spheres
+const sharedGeometry = new THREE.SphereGeometry(0.35, 16, 16);
+const baseMaterial = new THREE.MeshBasicMaterial({ color: 0x111111, transparent: true, opacity: 0.1, side: THREE.DoubleSide });
 
-// Create the 16x16x16 grid of spheres (representing LEDs in tubes)
-const createVoxelGrid = () => {
-    // Basic material (will be updated via WebSocket)
-    const geometry = new THREE.SphereGeometry(0.35, 16, 16);
-    const material = new THREE.MeshBasicMaterial({ color: 0x111111, transparent: true, opacity: 0.1, side: THREE.DoubleSide });
+let wireframeLine = null;
+
+// Create or rebuild the voxel grid for the current CUBE_SIZE
+const buildVoxelGrid = (size) => {
+    // Clear previous grid
+    while (cubeGroup.children.length > 0) {
+        cubeGroup.remove(cubeGroup.children[0]);
+    }
+    voxels = [];
+    wireframeLine = null;
 
     const offset = voxelSpacing / 2;
 
-    for (let x = 0; x < CUBE_SIZE; x++) {
+    for (let x = 0; x < size; x++) {
         voxels[x] = [];
-        for (let y = 0; y < CUBE_SIZE; y++) {
+        for (let y = 0; y < size; y++) {
             voxels[x][y] = [];
-            for (let z = 0; z < CUBE_SIZE; z++) {
-                const mesh = new THREE.Mesh(geometry, material.clone());
+            for (let z = 0; z < size; z++) {
+                const mesh = new THREE.Mesh(sharedGeometry, baseMaterial.clone());
                 
                 // Position relative to center: Upper Front Right octant
                 mesh.position.set(
@@ -60,28 +65,16 @@ const createVoxelGrid = () => {
     }
     
     // Wireframe Box Outline
-    const boxSize = CUBE_SIZE * voxelSpacing;
+    const boxSize = size * voxelSpacing;
     const boxGeo = new THREE.BoxGeometry(boxSize, boxSize, boxSize);
     boxGeo.translate(boxSize / 2, boxSize / 2, boxSize / 2);
     
     const edges = new THREE.EdgesGeometry(boxGeo);
-    const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x334155 }));
-    cubeGroup.add(line);
-    
-    // Create 7 cloned mirror groups representing the 3 physical reflections
-    const scales = [
-        [-1, 1, 1], [1, -1, 1], [-1, -1, 1],
-        [1, 1, -1], [-1, 1, -1], [1, -1, -1], [-1, -1, -1]
-    ];
-    
-    scales.forEach(([sx, sy, sz]) => {
-        const clone = cubeGroup.clone();
-        clone.scale.set(sx, sy, sz);
-        mirrorsGroup.add(clone);
-    });
+    wireframeLine = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x334155 }));
+    cubeGroup.add(wireframeLine);
 };
 
-createVoxelGrid();
+buildVoxelGrid(CUBE_SIZE);
 
 camera.position.set(15, 12, 15);
 controls.target.set(0, 0, 0);
@@ -107,18 +100,6 @@ const animate = () => {
 
 animate();
 
-// UI: Toggle Mirrors
-const btnToggleMirrors = document.getElementById('btn-toggle-mirrors');
-let mirrorsEnabled = true;
-
-btnToggleMirrors.addEventListener('click', () => {
-    mirrorsEnabled = !mirrorsEnabled;
-    mirrorsGroup.visible = mirrorsEnabled;
-    btnToggleMirrors.innerText = mirrorsEnabled ? 'Disable UI Mirrors' : 'Enable UI Mirrors';
-    btnToggleMirrors.classList.toggle('primary', !mirrorsEnabled);
-    btnToggleMirrors.classList.toggle('secondary', mirrorsEnabled);
-});
-
 // Handle Window Resize
 window.addEventListener('resize', () => {
     const width = window.innerWidth - 320;
@@ -141,8 +122,16 @@ const connectWebSocket = () => {
 
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        if (data.voxels && data.voxels.length === CUBE_SIZE * CUBE_SIZE * CUBE_SIZE * 3) {
-            updateVoxels(data.voxels);
+        const gs = data.grid_size || CUBE_SIZE;
+        
+        // Rebuild grid if size changed
+        if (gs !== CUBE_SIZE) {
+            CUBE_SIZE = gs;
+            buildVoxelGrid(CUBE_SIZE);
+        }
+        
+        if (data.voxels && data.voxels.length === gs * gs * gs * 3) {
+            updateVoxels(data.voxels, gs);
         }
     };
 
@@ -153,16 +142,16 @@ const connectWebSocket = () => {
 };
 
 // Map flattened 1D array to our 3D Three.JS meshes
-const updateVoxels = (flatArray) => {
+const updateVoxels = (flatArray, gs) => {
     let activeCount = 0;
     let powerEstimate = 0; // rough calculation
     
-    for (let x = 0; x < CUBE_SIZE; x++) {
-        for (let y = 0; y < CUBE_SIZE; y++) {
-            for (let z = 0; z < CUBE_SIZE; z++) {
+    for (let x = 0; x < gs; x++) {
+        for (let y = 0; y < gs; y++) {
+            for (let z = 0; z < gs; z++) {
                 // The flat array indexing matches Python's numpy flatten()
                 // order: x, then y, then z
-                const idx = (x * CUBE_SIZE * CUBE_SIZE + y * CUBE_SIZE + z) * 3;
+                const idx = (x * gs * gs + y * gs + z) * 3;
                 
                 const r = flatArray[idx] / 255.0;
                 const g = flatArray[idx+1] / 255.0;
@@ -318,6 +307,96 @@ btnHuygensDemo.addEventListener('click', async () => {
     btnUpdate.click();
 });
 
+// ─── Coordinate Space Controls ───────────────────────
+const originX = document.getElementById('origin-x');
+const originY = document.getElementById('origin-y');
+const originZ = document.getElementById('origin-z');
+const scaleFactor = document.getElementById('scale-factor');
+const btnOriginCorner = document.getElementById('btn-origin-corner');
+const btnOriginCenter = document.getElementById('btn-origin-center');
+const btnScaleReset = document.getElementById('btn-scale-reset');
+const gridSizeInput = document.getElementById('grid-size');
+const gridLabel = document.getElementById('grid-label');
+const freeModeToggle = document.getElementById('free-mode-toggle');
+
+// Origin presets
+// Origin = "where in LED-space (1..N) does mathematical (0,0,0) sit"
+// Formula in backend: coord[i] = ((i+1) - origin) * scale
+btnOriginCorner.addEventListener('click', () => {
+    // Corner: origin=0 means math (0,0,0) is at position 0 (before the cube)
+    // At scale=1: LED coords = 1, 2, 3, ..., 8 (x=1 is first LED)
+    originX.value = 0;
+    originY.value = 0;
+    originZ.value = 0;
+    btnOriginCorner.classList.add('active');
+    btnOriginCenter.classList.remove('active');
+    triggerAutoRender();
+});
+
+btnOriginCenter.addEventListener('click', () => {
+    const gs = parseInt(gridSizeInput.value) || 8;
+    // Center: origin = (N+1)/2 means math (0,0,0) is at the geometric center
+    // At scale=1 with N=8: origin=4.5, coords = -3.5, -2.5, ..., 3.5
+    const center = (gs + 1) / 2;
+    originX.value = center;
+    originY.value = center;
+    originZ.value = center;
+    btnOriginCenter.classList.add('active');
+    btnOriginCorner.classList.remove('active');
+    triggerAutoRender();
+});
+
+// Scale reset: restore scale=1 and recompute origin for active preset
+btnScaleReset.addEventListener('click', () => {
+    scaleFactor.value = 1;
+    // Reapply whichever origin preset is active
+    if (btnOriginCenter.classList.contains('active')) {
+        btnOriginCenter.click();
+    } else {
+        btnOriginCorner.click();
+    }
+});
+
+// Grid size 
+gridSizeInput.addEventListener('input', () => {
+    const gs = parseInt(gridSizeInput.value) || 8;
+    gridLabel.innerText = `${gs}×${gs}×${gs}`;
+});
+
+// Free mode toggle: when OFF, lock grid back to 8
+freeModeToggle.addEventListener('change', () => {
+    if (!freeModeToggle.checked) {
+        gridSizeInput.value = 8;
+        gridLabel.innerText = '8×8×8';
+    }
+    gridSizeInput.disabled = !freeModeToggle.checked;
+    triggerAutoRender();
+});
+
+// Auto-render triggers for origin inputs (manual edits)
+[originX, originY, originZ].forEach(el => {
+    el.addEventListener('input', () => {
+        // Manual origin edit clears the preset highlight
+        btnOriginCorner.classList.remove('active');
+        btnOriginCenter.classList.remove('active');
+        triggerAutoRender();
+    });
+});
+
+// When scale changes, update label and recompute origin if a preset is active
+scaleFactor.addEventListener('input', () => {
+    document.getElementById('scale-label').innerText = parseFloat(scaleFactor.value).toFixed(1);
+    if (btnOriginCenter.classList.contains('active')) {
+        btnOriginCenter.click();
+    } else if (btnOriginCorner.classList.contains('active')) {
+        btnOriginCorner.click();
+    } else {
+        triggerAutoRender();
+    }
+});
+
+gridSizeInput.addEventListener('input', triggerAutoRender);
+
 // Playback Controls
 const btnPlayPause = document.getElementById('btn-play-pause');
 const tScrubber = document.getElementById('t-scrubber');
@@ -391,14 +470,27 @@ btnUpdate.addEventListener('click', async () => {
             colorArray.push(row.querySelector('.eq-color').value);
         }
     });
-    
-    const serial_port = serialPortInput.value;
+
+    // Collect coordinate space settings
+    const ox = parseFloat(originX.value) || 0;
+    const oy = parseFloat(originY.value) || 0;
+    const oz = parseFloat(originZ.value) || 0;
+    const sf = parseFloat(scaleFactor.value) || 1;
+    const gs = freeModeToggle.checked ? (parseInt(gridSizeInput.value) || 8) : 8;
 
     try {
         const response = await fetch('/api/update_plot', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ equations: eqArray, colors: colorArray })
+            body: JSON.stringify({ 
+                equations: eqArray, 
+                colors: colorArray,
+                origin_x: ox,
+                origin_y: oy,
+                origin_z: oz,
+                scale: sf,
+                grid_size: gs
+            })
         });
         cubeGroup.rotation.y = 0; // Reset rotation so user can see front view
     } catch (e) {

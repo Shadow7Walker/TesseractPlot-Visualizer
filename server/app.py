@@ -84,10 +84,15 @@ def close_wifi():
 class PlotConfig(BaseModel):
     equations: list[str]
     colors: list[str]
+    origin_x: float = 0.0
+    origin_y: float = 0.0
+    origin_z: float = 0.0
+    scale: float = 1.0
+    grid_size: int = 8
 
 # Global state
 current_voxels = np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 3), dtype=np.uint8)
-current_equations = ["z = 4 * sin(sqrt(x**2 + y**2) - t * 2)"]
+current_equations = ["z = 4.5 + 3.5 * sin(sqrt((x-4.5)**2 + (y-4.5)**2) - t * 2)"]
 current_colors = ["#ff3c3c"]
 stream_to_hardware = False
 t = 0.0
@@ -95,16 +100,31 @@ is_playing = True
 playback_speed = 1.0
 frame_seq = 0
 last_sent_voxels = None
+current_origin = (0.0, 0.0, 0.0)
+current_scale = 1.0
+current_grid_size = 8
 
-# Pre-compute static geometry grids to save CPU during rapid frame calculations
+# Default coordinate space (will be rebuilt dynamically based on origin/scale/grid_size)
+HW_CUBE_SIZE = 8  # Fixed hardware size
 COORD_MIN, COORD_MAX = 1.0, 8.0
 COORD_RANGE = COORD_MAX - COORD_MIN
-ls = np.linspace(COORD_MIN, COORD_MAX, CUBE_SIZE)
-X3, Y3, Z3 = np.meshgrid(ls, ls, ls, indexing='ij')
-X_2d, Y_2d = np.meshgrid(ls, ls, indexing='ij')
 
-# Indices maps for explicitly targeting mask planes
-I_IDX, J_IDX = np.indices((CUBE_SIZE, CUBE_SIZE))
+def build_grids(grid_size, origin, scale):
+    """
+    Build numpy meshgrids for the given grid size, origin, and scale.
+    
+    'origin' is the position in LED-space (1..N) where mathematical (0,0,0) sits.
+    Formula: coord_for_LED[i] = ((i + 1) - origin) * scale
+    
+    Corner mode: origin=(0,0,0)   → coords 1,2,...,8   (x=1 is first LED)
+    Center mode: origin=(4.5,4.5,4.5) → coords -3.5,...,3.5  (x=0 is center)
+    """
+    led_positions = np.arange(grid_size) + 1  # 1, 2, ..., N
+    ls_x = (led_positions - origin[0]) * scale
+    ls_y = (led_positions - origin[1]) * scale
+    ls_z = (led_positions - origin[2]) * scale
+    X3, Y3, Z3 = np.meshgrid(ls_x, ls_y, ls_z, indexing='ij')
+    return X3, Y3, Z3
 
 class TimeConfig(BaseModel):
     t_val: float = None
@@ -153,12 +173,14 @@ def numpy_safe_eval(eq_str, env):
     except Exception as e:
         raise ValueError(f"Evaluation failed: {e}")
 
-def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float):
+def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float, 
+                   grid_size: int = 8, origin: tuple = (0.0, 0.0, 0.0), scale: float = 1.0):
     """
     Evaluates one or multiple mathematical equations.
     Supports explicit z=, y=, x= definitions, as well as implicit inequalities.
     """
-    voxels = np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 3), dtype=np.uint8)
+    X3, Y3, Z3 = build_grids(grid_size, origin, scale)
+    voxels = np.zeros((grid_size, grid_size, grid_size, 3), dtype=np.uint8)
     
     allowed_3d = {
         "x": X3, "y": Y3, "z": Z3,
@@ -186,7 +208,7 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
             eq = clean_eq(eq).strip()
             if not eq: continue
             
-            mask = np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE), dtype=bool)
+            mask = np.zeros((grid_size, grid_size, grid_size), dtype=bool)
 
             # Unified 3D Volumetric Evaluation
             # Since RewriteLogic intercepts '==' and converts it to a volumetric constraint, 
@@ -200,12 +222,12 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
             # Vectorized Matrix Color application
             base_color = parsed_colors[idx % len(parsed_colors)] if parsed_colors else (255, 255, 255)
             
-            k_vals = np.arange(CUBE_SIZE)
-            shading = 0.4 + 0.6 * (k_vals / 7.0)
+            k_vals = np.arange(grid_size)
+            shading = 0.4 + 0.6 * (k_vals / max(grid_size - 1, 1))
             
-            colored_z = np.outer(shading, base_color).astype(np.uint8) # Shape: (8, 3)
-            color_grid = np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 3), dtype=np.uint8)
-            color_grid[:] = colored_z # Broadcasts exactly matching Z dimension mapping natively
+            colored_z = np.outer(shading, base_color).astype(np.uint8)
+            color_grid = np.zeros((grid_size, grid_size, grid_size, 3), dtype=np.uint8)
+            color_grid[:] = colored_z
             
             voxels[mask] = color_grid[mask]
 
@@ -232,14 +254,22 @@ async def send_frame_to_esp32(voxels: np.ndarray):
     # the floor (StripIndex = Height (Y), RowIndex = Depth (Z), LedIndex = Width (X)).
     # We invert Mathematical X and Z axes to match specific hardware positioning,
     # then transpose Mathematical (X, Y, Z) mapping to -> Physical (Y, Z, X).
-    hw_voxels = np.flip(voxels, axis=(0, 2))
+    # If grid_size != 8 (free mode), downsample to 8x8x8 for hardware
+    gs = voxels.shape[0]
+    if gs != HW_CUBE_SIZE:
+        from scipy.ndimage import zoom
+        factor = HW_CUBE_SIZE / gs
+        hw_voxels_raw = zoom(voxels, (factor, factor, factor, 1), order=0).astype(np.uint8)
+    else:
+        hw_voxels_raw = voxels
+    hw_voxels = np.flip(hw_voxels_raw, axis=(0, 2))
     hw_voxels = np.ascontiguousarray(np.transpose(hw_voxels, (1, 2, 0, 3)))
 
     if stream_mode == "usb":
         if not active_serial or not active_serial.is_open:
             return
         
-        for x in range(CUBE_SIZE):
+        for x in range(HW_CUBE_SIZE):
             plane_data = hw_voxels[x]
             packet_data = bytearray([frame_seq, x]) + plane_data.tobytes()
             try:
@@ -253,7 +283,7 @@ async def send_frame_to_esp32(voxels: np.ndarray):
         if not active_udp_sock or not WIFI_TARGET:
             return
             
-        for x in range(CUBE_SIZE):
+        for x in range(HW_CUBE_SIZE):
             plane_data = hw_voxels[x]
             packet_data = bytearray([frame_seq, x]) + plane_data.tobytes()
             try:
@@ -266,9 +296,12 @@ async def send_frame_to_esp32(voxels: np.ndarray):
 
 @app.post("/api/update_plot")
 async def update_plot(config: PlotConfig):
-    global current_equations, current_colors
+    global current_equations, current_colors, current_origin, current_scale, current_grid_size
     current_equations = config.equations
     current_colors = config.colors
+    current_origin = (config.origin_x, config.origin_y, config.origin_z)
+    current_scale = config.scale
+    current_grid_size = config.grid_size
     return {"status": "success", "message": "Plot updated"}
 
 @app.post("/api/update_time")
@@ -314,7 +347,8 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             # Send current voxel state to UI at ~30fps
             flat_voxels = current_voxels.flatten().tolist()
-            await websocket.send_json({"voxels": flat_voxels})
+            gs = current_voxels.shape[0]
+            await websocket.send_json({"voxels": flat_voxels, "grid_size": gs})
             await asyncio.sleep(1/30.0)
     except Exception as e:
         print(f"WebSocket Client disconnected: {e}")
@@ -326,7 +360,10 @@ async def stream_task():
         if is_playing:
             t += (0.05 * playback_speed)
             
-        current_voxels = calculate_plot(current_equations, current_colors, t)
+        current_voxels = calculate_plot(
+            current_equations, current_colors, t,
+            grid_size=current_grid_size, origin=current_origin, scale=current_scale
+        )
         
         if stream_to_hardware:
             await send_frame_to_esp32(current_voxels)

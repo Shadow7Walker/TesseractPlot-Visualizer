@@ -402,3 +402,62 @@ small {
     font-weight: bold;
     font-family: monospace;
 }
+
+/* Coordinate Space Controls */
+.coord-controls {
+    background: var(--bg-dark);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.6rem 0.75rem;
+}
+
+.coord-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.coord-label {
+    color: var(--text-muted);
+    font-family: monospace;
+    font-size: 0.75rem;
+    min-width: 38px;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.coord-input {
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    padding: 0.35rem 0.4rem;
+    font-family: monospace;
+    font-size: 0.85rem;
+    border-radius: 4px;
+    outline: none;
+    width: 56px;
+    text-align: center;
+    transition: border-color 0.2s;
+    -moz-appearance: textfield;
+}
+
+.coord-input::-webkit-inner-spin-button,
+.coord-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.coord-input:focus {
+    border-color: var(--primary);
+}
+
+.btn-toggle {
+    transition: all 0.2s ease;
+}
+
+.btn-toggle.active {
+    background: var(--primary) !important;
+    color: white !important;
+    border-color: var(--primary) !important;
+}
