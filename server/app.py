@@ -23,6 +23,12 @@ app = FastAPI(lifespan=lifespan)
 # Mount the static directory for the Web UI
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+from fastapi.responses import FileResponse
+
+@app.get("/logo.png")
+async def serve_logo():
+    return FileResponse("logo.png", media_type="image/png")
+
 # ESP32 Connection State
 active_serial = None
 active_udp_sock = None
@@ -380,6 +386,8 @@ async def stream_task():
     while True:
         if is_playing:
             t += (0.05 * playback_speed)
+            # Oscillate t within 0..100 range
+            t = t % 100.0
             
         current_voxels = calculate_plot(
             current_equations, current_colors, t,
