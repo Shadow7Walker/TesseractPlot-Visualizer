@@ -89,6 +89,7 @@ class PlotConfig(BaseModel):
     origin_z: float = 0.0
     scale: float = 1.0
     grid_size: int = 8
+    brightness: float = 0.2
 
 # Global state
 current_voxels = np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 3), dtype=np.uint8)
@@ -103,6 +104,7 @@ last_sent_voxels = None
 current_origin = (0.0, 0.0, 0.0)
 current_scale = 1.0
 current_grid_size = 8
+current_brightness = 0.2
 
 # Default coordinate space (will be rebuilt dynamically based on origin/scale/grid_size)
 HW_CUBE_SIZE = 8  # Fixed hardware size
@@ -174,7 +176,8 @@ def numpy_safe_eval(eq_str, env):
         raise ValueError(f"Evaluation failed: {e}")
 
 def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float, 
-                   grid_size: int = 8, origin: tuple = (0.0, 0.0, 0.0), scale: float = 1.0):
+                   grid_size: int = 8, origin: tuple = (0.0, 0.0, 0.0), scale: float = 1.0, 
+                   brightness: float = 1.0):
     """
     Evaluates one or multiple mathematical equations.
     Supports explicit z=, y=, x= definitions, as well as implicit inequalities.
@@ -193,8 +196,24 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
     for hex_c in hex_colors:
         h = hex_c.lstrip('#')
         # fallback to red if parsing fails
-        if len(h) != 6: parsed_colors.append((255, 60, 60))
-        else: parsed_colors.append(tuple(int(h[i:i+2], 16) for i in (0, 2, 4)))
+        if len(h) != 6: 
+            parsed_colors.append((255, 60, 60))
+        else: 
+            parsed_colors.append(tuple(int(h[i:i+2], 16) for i in (0, 2, 4)))
+            
+    # Calculate 3D spatial shading matrix based on distance to the center.
+    # At brightness = 0.0, LEDs are uniform 1.0x (default brightness).
+    # As brightness approaches 1.0, inner LEDs get boosted (up to 1.5x) and outer LEDs fade (down to 0.2x).
+    C = (grid_size - 1) / 2.0
+    i_x, i_y, i_z = np.indices((grid_size, grid_size, grid_size))
+    d = np.sqrt((i_x - C)**2 + (i_y - C)**2 + (i_z - C)**2)
+    max_d = np.sqrt(3 * C**2) if C > 0 else 1.0
+    norm_d = d / max_d  # 0.0 at center, 1.0 at farthest outer corner
+    
+    center_mult = 1.0 + (brightness * 0.5)  # Boosts inner LEDs
+    outer_mult = 1.0 - (brightness * 0.8)   # Dims outer LEDs
+    
+    shading_matrix = center_mult - (center_mult - outer_mult) * norm_d
         
     import re
     def clean_eq(e):
@@ -222,12 +241,13 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
             # Vectorized Matrix Color application
             base_color = parsed_colors[idx % len(parsed_colors)] if parsed_colors else (255, 255, 255)
             
-            k_vals = np.arange(grid_size)
-            shading = 0.4 + 0.6 * (k_vals / max(grid_size - 1, 1))
+            color_grid = np.zeros((grid_size, grid_size, grid_size, 3), dtype=np.float32)
+            color_grid[..., 0] = base_color[0] * shading_matrix
+            color_grid[..., 1] = base_color[1] * shading_matrix
+            color_grid[..., 2] = base_color[2] * shading_matrix
             
-            colored_z = np.outer(shading, base_color).astype(np.uint8)
-            color_grid = np.zeros((grid_size, grid_size, grid_size, 3), dtype=np.uint8)
-            color_grid[:] = colored_z
+            # Clip values to 0-255 bounds to prevent uint8 wrapping overflow
+            color_grid = np.clip(color_grid, 0, 255).astype(np.uint8)
             
             voxels[mask] = color_grid[mask]
 
@@ -296,12 +316,13 @@ async def send_frame_to_esp32(voxels: np.ndarray):
 
 @app.post("/api/update_plot")
 async def update_plot(config: PlotConfig):
-    global current_equations, current_colors, current_origin, current_scale, current_grid_size
+    global current_equations, current_colors, current_origin, current_scale, current_grid_size, current_brightness
     current_equations = config.equations
     current_colors = config.colors
     current_origin = (config.origin_x, config.origin_y, config.origin_z)
     current_scale = config.scale
     current_grid_size = config.grid_size
+    current_brightness = config.brightness
     return {"status": "success", "message": "Plot updated"}
 
 @app.post("/api/update_time")
@@ -362,7 +383,8 @@ async def stream_task():
             
         current_voxels = calculate_plot(
             current_equations, current_colors, t,
-            grid_size=current_grid_size, origin=current_origin, scale=current_scale
+            grid_size=current_grid_size, origin=current_origin, scale=current_scale,
+            brightness=current_brightness
         )
         
         if stream_to_hardware:

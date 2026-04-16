@@ -1,0 +1,5 @@
+1) equations - make them desmos style
+2) dropdown - organize the ui with drop downs and make them easily distinguishable 
+3) hover buttons - add short tutorial notes against different buttons
+4) Implement new features from ./seperate branch
+Note the code in seperate branch is not fully working or optimized, so you will have to fix it and implement it in the main branch

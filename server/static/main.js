@@ -5,11 +5,20 @@ let voxels = []; // 3D array of meshes
 
 // Three.js SCENE
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000); // aspect updated dynamically
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 
-renderer.setSize(window.innerWidth - 320, window.innerHeight); // Subtract sidebar width
 document.getElementById('three-canvas').appendChild(renderer.domElement);
+const sidebarEl = document.querySelector('.sidebar');
+
+const updateRendererSize = () => {
+    const sidebarWidth = sidebarEl ? sidebarEl.offsetWidth : 380;
+    const width = window.innerWidth - sidebarWidth;
+    camera.aspect = width / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(width, window.innerHeight);
+};
+updateRendererSize();
 
 // Controls
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -100,13 +109,11 @@ const animate = () => {
 
 animate();
 
-// Handle Window Resize
-window.addEventListener('resize', () => {
-    const width = window.innerWidth - 320;
-    camera.aspect = width / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(width, window.innerHeight);
-});
+// Handle Window and Sidebar Resize
+window.addEventListener('resize', updateRendererSize);
+if (sidebarEl) {
+    new ResizeObserver(updateRendererSize).observe(sidebarEl);
+}
 
 // WebSocket Connection
 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -161,7 +168,9 @@ const updateVoxels = (flatArray, gs) => {
                 
                 if (r > 0 || g > 0 || b > 0) {
                     mesh.material.color.setRGB(r, g, b);
-                    mesh.material.opacity = 0.9;
+                    // Dynamically adjust opacity based on color intensity
+                    const maxIntensity = Math.max(r, g, b);
+                    mesh.material.opacity = 0.15 + (maxIntensity * 0.75); 
                     activeCount++;
                     
                     // Rough current rule of thumb: 20mA per color channel at full brightness
@@ -232,10 +241,11 @@ const addEquationRow = (defaultValue = "", overrideColor = null) => {
     row.className = 'equation-row';
     const color = overrideColor || eqColors[eqCount % eqColors.length];
     
+    // Set up layout with textarea
     row.innerHTML = `
-        <input type="color" class="eq-color" value="${color}" style="border: none; width: 24px; height: 28px; padding: 0; background: none; cursor: pointer; border-radius: 4px; margin-right: 0.5rem;" title="Change Graph Color">
-        <input type="text" class="eq-input" value="${defaultValue}" placeholder="e.g. z = sin(x) or x**2+y**2 < 16">
-        <button class="btn-remove" title="Remove Field">
+        <input type="color" class="eq-color" value="${color}" style="border: none; width: 24px; height: 28px; padding: 0; background: none; cursor: pointer; border-radius: 4px; margin-right: 0.5rem; flex-shrink: 0;" title="Change Graph Color">
+        <textarea class="eq-input" placeholder="e.g. z = sin(x) or x**2+y**2 < 16" rows="1">${defaultValue}</textarea>
+        <button class="btn-remove" title="Remove Field" style="flex-shrink: 0;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
     `;
@@ -248,12 +258,26 @@ const addEquationRow = (defaultValue = "", overrideColor = null) => {
         }
     });
     
-    // Auto-render triggers
-    row.querySelector('.eq-input').addEventListener('input', triggerAutoRender);
+    // Auto-expand logic for textareas
+    const textarea = row.querySelector('.eq-input');
+    const autoExpand = () => {
+        textarea.style.height = 'auto'; // Reset to auto to calculate true scrollHeight
+        textarea.style.height = textarea.scrollHeight + 'px';
+    };
+    
+    // Apply changes on input
+    textarea.addEventListener('input', () => {
+        autoExpand();
+        triggerAutoRender();
+    });
+    
     row.querySelector('.eq-color').addEventListener('input', triggerAutoRender);
     
     container.appendChild(row);
     eqCount++;
+    
+    // Initial expansion setup right after appending
+    setTimeout(autoExpand, 0);
 };
 
 // Initial default rows
@@ -269,24 +293,35 @@ btnHuygensDemo.addEventListener('click', async () => {
     container.innerHTML = '';
     eqCount = 0;
     
+    // Read current grid size for dynamic scaling
+    const gs = freeModeToggle.checked ? (parseInt(gridSizeInput.value) || 8) : 8;
+    const C = ((gs + 1) / 2).toFixed(2);       // Center of grid
+    const E = (gs * 0.85).toFixed(2);           // Edge wavelet spawn point  
+    const D1 = (gs * 0.75).toFixed(2);          // Diagonal spawn (planar)
+    const D2 = (gs * 0.70).toFixed(2);          // Diagonal spawn (volumetric)
+    const T = (gs * 0.1).toFixed(2);            // Shell thickness (scales with grid)
+    const R0 = (gs * 0.35).toFixed(2);          // Primary wavefront freeze radius
+    const tDelay = "4.0";                       // Secondary wavefront delay
+
     const huygensEqs = [
-        { c: "#ffffff", e: "abs((x-4.5)**2 + (y-4.5)**2 + (z-4.5)**2 - clip(t, 0, 3.0)**2) < 0.8" }, // Primary wavefront freezes at t=3.0
+        // Phase 1: Primary wavefront — expands from center, freezes at R0
+        { c: "#ffffff", e: `abs((x-${C})**2 + (y-${C})**2 + (z-${C})**2 - clip(t, 0, ${R0})**2) < ${T}` },
         
-        // 3 Axis wavelets (Red, Green, Blue) starting at t=4.0
-        { c: "#ff3c3c", e: "abs((x-7.5)**2 + (y-4.5)**2 + (z-4.5)**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
-        { c: "#3cff3c", e: "abs((x-4.5)**2 + (y-7.5)**2 + (z-4.5)**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
-        { c: "#3c3cff", e: "abs((x-4.5)**2 + (y-4.5)**2 + (z-7.5)**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
+        // Phase 2: Axis wavelets (vivid RGB) — spawn on the frozen primary shell surface
+        { c: "#ff2020", e: `abs((x-${E})**2 + (y-${C})**2 + (z-${C})**2 - clip(t-${tDelay}, 0, 100)**2) < ${T} and (t > ${tDelay})` },
+        { c: "#20ff40", e: `abs((x-${C})**2 + (y-${E})**2 + (z-${C})**2 - clip(t-${tDelay}, 0, 100)**2) < ${T} and (t > ${tDelay})` },
+        { c: "#4080ff", e: `abs((x-${C})**2 + (y-${C})**2 + (z-${E})**2 - clip(t-${tDelay}, 0, 100)**2) < ${T} and (t > ${tDelay})` },
 
-        // 3 Planar diagonal wavelets (Yellow, Cyan, Magenta) 
-        { c: "#ffff3c", e: "abs((x-6.62)**2 + (y-6.62)**2 + (z-4.5)**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
-        { c: "#3cffff", e: "abs((x-4.5)**2 + (y-6.62)**2 + (z-6.62)**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
-        { c: "#ff3cff", e: "abs((x-6.62)**2 + (y-4.5)**2 + (z-6.62)**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
+        // Phase 2: Planar diagonal wavelets (vivid Yellow, Cyan, Magenta)
+        { c: "#ffe030", e: `abs((x-${D1})**2 + (y-${D1})**2 + (z-${C})**2 - clip(t-${tDelay}, 0, 100)**2) < ${T} and (t > ${tDelay})` },
+        { c: "#30ffe0", e: `abs((x-${C})**2 + (y-${D1})**2 + (z-${D1})**2 - clip(t-${tDelay}, 0, 100)**2) < ${T} and (t > ${tDelay})` },
+        { c: "#ff30e0", e: `abs((x-${D1})**2 + (y-${C})**2 + (z-${D1})**2 - clip(t-${tDelay}, 0, 100)**2) < ${T} and (t > ${tDelay})` },
 
-        // 1 Volumetric exact diagonal wavelet (White)
-        { c: "#ffffff", e: "abs((x-6.23)**2 + (y-6.23)**2 + (z-6.23)**2 - clip(t-4.0, 0, 100)**2) < 0.8 and (t > 4.0)" },
+        // Phase 2: Volumetric diagonal wavelet (orange-gold)
+        { c: "#ff8800", e: `abs((x-${D2})**2 + (y-${D2})**2 + (z-${D2})**2 - clip(t-${tDelay}, 0, 100)**2) < ${T} and (t > ${tDelay})` },
 
-        // Infinite Expanding Envelope
-        { c: "#00ffff", e: "abs((x-4.5)**2 + (y-4.5)**2 + (z-4.5)**2 - clip(3.0 + (t-4.0), 0, 100)**2) < 0.8 and (t > 4.0)" }
+        // Phase 2: Expanding envelope — continues from where the primary froze
+        { c: "#00ffff", e: `abs((x-${C})**2 + (y-${C})**2 + (z-${C})**2 - clip(${R0} + (t-${tDelay}), 0, 100)**2) < ${T} and (t > ${tDelay})` }
     ];
     
     huygensEqs.forEach(conf => addEquationRow(conf.e, conf.c));
@@ -349,6 +384,7 @@ btnOriginCenter.addEventListener('click', () => {
 // Scale reset: restore scale=1 and recompute origin for active preset
 btnScaleReset.addEventListener('click', () => {
     scaleFactor.value = 1;
+    document.getElementById('scale-label').innerText = '1.0';
     // Reapply whichever origin preset is active
     if (btnOriginCenter.classList.contains('active')) {
         btnOriginCenter.click();
@@ -457,6 +493,16 @@ speedSlider.addEventListener('input', async (e) => {
     });
 });
 
+// UI Wiring: Brightness Slider
+const brightnessSlider = document.getElementById('brightness-slider');
+const brightLabel = document.getElementById('bright-label');
+if (brightnessSlider && brightLabel) {
+    brightnessSlider.addEventListener('input', (e) => {
+        brightLabel.innerText = e.target.value;
+        triggerAutoRender();
+    });
+}
+
 btnUpdate.addEventListener('click', async () => {
     // Collect all inputs and colors
     const rows = document.querySelectorAll('.equation-row');
@@ -478,6 +524,10 @@ btnUpdate.addEventListener('click', async () => {
     const sf = parseFloat(scaleFactor.value) || 1;
     const gs = freeModeToggle.checked ? (parseInt(gridSizeInput.value) || 8) : 8;
 
+    // Brightness setting
+    const brightnessSlider = document.getElementById('brightness-slider');
+    const brightVal = brightnessSlider ? parseFloat(brightnessSlider.value) / 100.0 : 0.2;
+
     try {
         const response = await fetch('/api/update_plot', {
             method: 'POST',
@@ -489,7 +539,8 @@ btnUpdate.addEventListener('click', async () => {
                 origin_y: oy,
                 origin_z: oz,
                 scale: sf,
-                grid_size: gs
+                grid_size: gs,
+                brightness: brightVal
             })
         });
         cubeGroup.rotation.y = 0; // Reset rotation so user can see front view
@@ -536,3 +587,67 @@ btnStream.addEventListener('click', async () => {
 connectWebSocket();
 // Trigger initial calculation
 setTimeout(() => btnUpdate.click(), 500);
+
+// ─── Math Keyboard ───────────────────────────────────
+const mathKbToggle = document.getElementById('btn-math-kb');
+const mathKbPanel = document.getElementById('math-keyboard');
+const mathKbClose = document.getElementById('btn-close-math-kb');
+let lastFocusedTextarea = null;
+
+// Track which equation textarea was last focused
+document.addEventListener('focusin', (e) => {
+    if (e.target.classList.contains('eq-input')) {
+        lastFocusedTextarea = e.target;
+    }
+});
+
+// Toggle panel
+mathKbToggle.addEventListener('click', () => {
+    const isOpen = mathKbPanel.classList.toggle('open');
+    mathKbToggle.classList.toggle('active', isOpen);
+});
+
+// Close button
+mathKbClose.addEventListener('click', () => {
+    mathKbPanel.classList.remove('open');
+    mathKbToggle.classList.remove('active');
+});
+
+// Insert function at cursor position in the last focused textarea
+document.querySelectorAll('.math-kb-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const insertText = btn.dataset.insert;
+        
+        // If no textarea was focused yet, use the first one
+        if (!lastFocusedTextarea) {
+            lastFocusedTextarea = document.querySelector('.eq-input');
+        }
+        if (!lastFocusedTextarea) return;
+        
+        const ta = lastFocusedTextarea;
+        const start = ta.selectionStart;
+        const end = ta.selectionEnd;
+        const before = ta.value.substring(0, start);
+        const after = ta.value.substring(end);
+        
+        ta.value = before + insertText + after;
+        
+        // Place cursor inside parentheses if the insert ends with ()
+        let cursorPos;
+        if (insertText.endsWith('()')) {
+            cursorPos = start + insertText.length - 1;
+        } else if (insertText.includes('(') && insertText.includes(')')) {
+            // For templates like clip(, 0, 100) — put cursor after first (
+            cursorPos = start + insertText.indexOf('(') + 1;
+        } else {
+            cursorPos = start + insertText.length;
+        }
+        
+        ta.setSelectionRange(cursorPos, cursorPos);
+        ta.focus();
+        
+        // Trigger auto-expand and auto-render
+        ta.dispatchEvent(new Event('input'));
+    });
+});

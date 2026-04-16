@@ -19,15 +19,15 @@
             </header>
 
             <div class="control-group">
-                <label>Mathematical Functions</label>
+                <label title="Define mathematical surfaces and volumes to render in 3D">Mathematical Functions</label>
                 <div id="equations-container">
-                    <!-- Equation rows will be injected here by JS -->
+                    <!-- Equation rows injected by JS -->
                 </div>
                 <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-                    <button id="btn-add-eq" class="btn secondary btn-small" style="flex: 1;">
+                    <button id="btn-add-eq" class="btn secondary btn-small" style="flex: 1;" title="Add another equation to plot simultaneously">
                         + Add Equation
                     </button>
-                    <button id="btn-huygens-demo" class="btn primary btn-small" style="flex: 1;">
+                    <button id="btn-huygens-demo" class="btn primary btn-small" style="flex: 1;" title="Load a pre-built Huygens' wavelet animation with expanding spherical wavefronts">
                         Load Huygens'
                     </button>
                 </div>
@@ -35,25 +35,71 @@
             </div>
 
             <div class="control-group">
-                <label>Playback Controls (Time 't' = <span id="t-val-display" style="font-family: monospace;">0.0</span>)</label>
+                <label title="Control the time variable 't' for animated equations">Playback Controls (Time 't' = <span id="t-val-display" style="font-family: monospace;">0.0</span>)</label>
                 <div style="display: flex; gap: 0.5rem; align-items: center;">
-                    <button id="btn-play-pause" class="btn secondary btn-small" style="min-width: 80px;">Pause</button>
-                    <input type="range" id="t-scrubber" min="0" max="100" step="0.1" value="0" style="flex-grow: 1;">
+                    <button id="btn-play-pause" class="btn secondary btn-small" style="min-width: 80px;" title="Play or pause the time variable 't' animation">Pause</button>
+                    <input type="range" id="t-scrubber" min="0" max="100" step="0.1" value="0" style="flex-grow: 1;" title="Scrub through time to preview specific frames">
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.25rem;">
                     <small>Speed: <span id="speed-label">1.0</span>x</small>
-                    <input type="range" id="speed-slider" min="-3" max="5" step="0.1" value="1.0" style="width: 100px;">
+                    <input type="range" id="speed-slider" min="-3" max="5" step="0.1" value="1.0" style="width: 100px;" title="Adjust playback speed — negative values reverse time">
                 </div>
             </div>
 
             <div class="control-group">
-                <label>Hardware Streaming</label>
+                <label title="Control LED brightness — lower values reduce light bleed and improve shape sharpness on hardware">Hardware Brightness & Sharpness</label>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <small>Intensity: <span id="bright-label">20</span>%</small>
+                    <input type="range" id="brightness-slider" min="0" max="100" step="1" value="20" style="flex-grow: 1;" title="Lower brightness prevents light bleeding between LEDs and makes geometry appear sharper">
+                </div>
+                <small style="color: var(--text-muted);">Adjust gradient: 0 means uniform. Higher makes outer LEDs dim and inner bright.</small>
+            </div>
+
+            <div class="control-group">
+                <label title="Configure the mathematical coordinate space — origin position, scale, and grid resolution">Coordinate Space</label>
+                <div class="coord-controls">
+                    <div class="coord-row">
+                        <span class="coord-label">Origin</span>
+                        <input type="number" id="origin-x" class="coord-input" value="0" step="0.5" title="X position in LED-space where math origin (0,0,0) sits">
+                        <input type="number" id="origin-y" class="coord-input" value="0" step="0.5" title="Y position in LED-space where math origin (0,0,0) sits">
+                        <input type="number" id="origin-z" class="coord-input" value="0" step="0.5" title="Z position in LED-space where math origin (0,0,0) sits">
+                    </div>
+                    <div style="display: flex; gap: 0.4rem; margin-top: 0.4rem;">
+                        <button id="btn-origin-corner" class="btn secondary btn-small btn-toggle active" style="flex:1;" title="Place origin so x=1 maps to the first LED (coords 1..8)">⊡ Corner</button>
+                        <button id="btn-origin-center" class="btn secondary btn-small btn-toggle" style="flex:1;" title="Place origin so (0,0,0) sits at the geometric center of the cube">⊕ Center</button>
+                    </div>
+                    <div class="coord-row" style="margin-top: 0.6rem;">
+                        <span class="coord-label">Scale</span>
+                        <span id="scale-label" style="font-family: monospace; font-size: 0.85rem; min-width: 30px; text-align: center;">1.0</span>
+                        <input type="range" id="scale-factor" min="0.1" max="5" step="0.1" value="1" style="flex: 1;" title="Scale factor — controls spacing between grid coordinates. Higher = wider mathematical range">
+                        <button id="btn-scale-reset" class="btn secondary btn-small" style="font-size: 0.7rem; padding: 0.3rem 0.5rem;" title="Reset scale to 1.0 and recompute origin">Reset</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label title="Change the virtual grid resolution — Free Mode decouples from the 8×8×8 hardware limit">Grid Resolution</label>
+                <div class="coord-controls">
+                    <div class="coord-row">
+                        <span class="coord-label">Size</span>
+                        <input type="number" id="grid-size" class="coord-input" value="8" min="2" max="64" step="1" style="flex: 1;" title="Grid dimension N — creates an N×N×N voxel cube">
+                        <span style="color: var(--text-muted); font-size: 0.75rem; white-space: nowrap;">× <span id="grid-label">8×8×8</span></span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.4rem; margin-top: 0.4rem;">
+                        <input type="checkbox" id="free-mode-toggle" style="cursor: pointer;" title="Enable to use any grid size beyond the hardware 8×8×8 limit">
+                        <label for="free-mode-toggle" style="margin: 0; font-size: 0.8rem; cursor: pointer; color: var(--text-muted);">Free Mode (decouple from hardware 8³)</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label title="Connect to the ESP32 LED matrix via USB Serial or WiFi UDP to stream plots to physical hardware">Hardware Streaming</label>
                 <div class="connection-tabs">
-                    <button class="tab-btn active" data-mode="usb">
+                    <button class="tab-btn active" data-mode="usb" title="Stream via USB Serial (COM port) — most reliable, lowest latency">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                         USB
                     </button>
-                    <button class="tab-btn" data-mode="wifi">
+                    <button class="tab-btn" data-mode="wifi" title="Stream via WiFi UDP — wireless but may drop frames on busy networks">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
                         WiFi
                     </button>
@@ -61,61 +107,24 @@
                 <div id="usb-settings" class="connection-panel">
                     <div class="input-wrapper" style="margin-bottom: 0.5rem;">
                         <span>COM</span>
-                        <input type="text" id="serial-port" value="COM5" placeholder="e.g. COM5">
+                        <input type="text" id="serial-port" value="COM5" placeholder="e.g. COM5" title="Windows COM port for the ESP32. Check Device Manager to find the correct port.">
                     </div>
                 </div>
                 <div id="wifi-settings" style="display: none;" class="connection-panel">
                     <div class="input-wrapper" style="margin-bottom: 0.5rem;">
                         <span>IP</span>
-                        <input type="text" id="wifi-ip" value="192.168.4.1" placeholder="ESP32 IP address">
+                        <input type="text" id="wifi-ip" value="192.168.4.1" placeholder="ESP32 IP address" title="IP address of the ESP32 access point. Default is 192.168.4.1 when connected to TesseractPlotx0001.">
                     </div>
                 </div>
-                <button id="btn-stream" class="btn danger" style="width: 100%;">
+                <button id="btn-stream" class="btn danger" style="width: 100%;" title="Start or stop streaming rendered frames to the ESP32 hardware in real-time">
                     <span class="status-indicator" id="stream-status"></span>
                     Start USB Streaming
                 </button>
             </div>
 
-            <div class="control-group">
-                <label>Coordinate Space</label>
-                <div class="coord-controls">
-                    <div class="coord-row">
-                        <span class="coord-label">Origin</span>
-                        <input type="number" id="origin-x" class="coord-input" value="0" step="0.5" title="Origin X">
-                        <input type="number" id="origin-y" class="coord-input" value="0" step="0.5" title="Origin Y">
-                        <input type="number" id="origin-z" class="coord-input" value="0" step="0.5" title="Origin Z">
-                    </div>
-                    <div style="display: flex; gap: 0.4rem; margin-top: 0.4rem;">
-                        <button id="btn-origin-corner" class="btn secondary btn-small btn-toggle active" style="flex:1;">⊡ Corner</button>
-                        <button id="btn-origin-center" class="btn secondary btn-small btn-toggle" style="flex:1;">⊕ Center</button>
-                    </div>
-                    <div class="coord-row" style="margin-top: 0.6rem;">
-                        <span class="coord-label">Scale</span>
-                        <span id="scale-label" style="font-family: monospace; font-size: 0.85rem; min-width: 30px; text-align: center;">1.0</span>
-                        <input type="range" id="scale-factor" min="0.1" max="5" step="0.1" value="1" style="flex: 1;">
-                        <button id="btn-scale-reset" class="btn secondary btn-small" style="font-size: 0.7rem; padding: 0.3rem 0.5rem;">Reset</button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="control-group">
-                <label>Grid Resolution</label>
-                <div class="coord-controls">
-                    <div class="coord-row">
-                        <span class="coord-label">Size</span>
-                        <input type="number" id="grid-size" class="coord-input" value="8" min="2" max="64" step="1" style="flex: 1;" title="Grid NxNxN">
-                        <span style="color: var(--text-muted); font-size: 0.75rem; white-space: nowrap;">× <span id="grid-label">8×8×8</span></span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 0.4rem; margin-top: 0.4rem;">
-                        <input type="checkbox" id="free-mode-toggle" style="cursor: pointer;">
-                        <label for="free-mode-toggle" style="margin: 0; font-size: 0.8rem; cursor: pointer; color: var(--text-muted);">Free Mode (decouple from hardware 8³)</label>
-                    </div>
-                </div>
-            </div>
-
-            <button id="btn-update" class="btn primary">Render 3D Preview</button>
+            <button id="btn-update" class="btn primary" title="Calculate and render the current equations into the 3D voxel preview">Render 3D Preview</button>
             <div style="display: flex; align-items: center; justify-content: center; margin-top: 0.8rem; gap: 0.4rem; color: #94a3b8;">
-                <input type="checkbox" id="auto-render-toggle" style="cursor: pointer;">
+                <input type="checkbox" id="auto-render-toggle" style="cursor: pointer;" title="When enabled, equations re-render automatically as you type (400ms debounce)">
                 <label for="auto-render-toggle" style="margin: 0; font-size: 0.85rem; cursor: pointer;">Auto-render on type</label>
             </div>
         </aside>
@@ -137,6 +146,60 @@
                 <div class="stat-box">
                     <span class="stat-label">Power Est.</span>
                     <span class="stat-value" id="power-counter">~15A</span>
+                </div>
+            </div>
+
+            <!-- Math Keyboard Toggle -->
+            <button id="btn-math-kb" class="math-kb-toggle" title="Toggle math function keyboard">𝑓(x)</button>
+            
+            <!-- Math Keyboard Panel -->
+            <div id="math-keyboard" class="math-keyboard">
+                <div class="math-kb-header">
+                    <span>Math Functions</span>
+                    <button id="btn-close-math-kb" class="math-kb-close">&times;</button>
+                </div>
+                <div class="math-kb-section">
+                    <small>Trigonometric</small>
+                    <div class="math-kb-grid">
+                        <button class="math-kb-btn" data-insert="sin()">sin</button>
+                        <button class="math-kb-btn" data-insert="cos()">cos</button>
+                        <button class="math-kb-btn" data-insert="tan()">tan</button>
+                    </div>
+                </div>
+                <div class="math-kb-section">
+                    <small>Power &amp; Root</small>
+                    <div class="math-kb-grid">
+                        <button class="math-kb-btn" data-insert="sqrt()">√x</button>
+                        <button class="math-kb-btn" data-insert="**2">x²</button>
+                        <button class="math-kb-btn" data-insert="**3">x³</button>
+                        <button class="math-kb-btn" data-insert="**">xⁿ</button>
+                        <button class="math-kb-btn" data-insert="exp()">eˣ</button>
+                        <button class="math-kb-btn" data-insert="abs()">|x|</button>
+                    </div>
+                </div>
+                <div class="math-kb-section">
+                    <small>Constants</small>
+                    <div class="math-kb-grid">
+                        <button class="math-kb-btn" data-insert="pi">π</button>
+                        <button class="math-kb-btn" data-insert="e">e</button>
+                        <button class="math-kb-btn" data-insert="t">t</button>
+                    </div>
+                </div>
+                <div class="math-kb-section">
+                    <small>Operators &amp; Logic</small>
+                    <div class="math-kb-grid">
+                        <button class="math-kb-btn" data-insert=" < ">&lt;</button>
+                        <button class="math-kb-btn" data-insert=" > ">&gt;</button>
+                        <button class="math-kb-btn" data-insert=" and ">and</button>
+                        <button class="math-kb-btn" data-insert=" or ">or</button>
+                    </div>
+                </div>
+                <div class="math-kb-section">
+                    <small>Utility</small>
+                    <div class="math-kb-grid">
+                        <button class="math-kb-btn" data-insert="clip(, 0, 100)">clip</button>
+                        <button class="math-kb-btn" data-insert="(x-)**2 + (y-)**2 + (z-)**2">r²</button>
+                    </div>
                 </div>
             </div>
         </main>

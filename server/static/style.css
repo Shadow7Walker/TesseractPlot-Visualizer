@@ -32,7 +32,7 @@ body {
 
 /* Sidebar Styles */
 .sidebar {
-    width: 320px;
+    width: 380px;
     background-color: var(--bg-sidebar);
     border-right: 1px solid var(--border);
     padding: 2rem 1.5rem;
@@ -42,6 +42,7 @@ body {
     z-index: 10;
     box-shadow: 4px 0 15px rgba(0,0,0,0.5);
     overflow-y: auto;
+    overflow-x: hidden;
 }
 
 /* Premium Scrollbar Styling */
@@ -242,7 +243,7 @@ small {
     font-family: monospace;
 }
 
-.equation-row input {
+.equation-row textarea.eq-input {
     background: transparent;
     border: none;
     color: var(--text-main);
@@ -252,6 +253,10 @@ small {
     outline: none;
     flex-grow: 1;
     min-width: 0;
+    resize: none;
+    overflow: hidden;
+    line-height: 1.4;
+    min-height: 22px;
 }
 
 .btn-remove {
@@ -460,4 +465,140 @@ small {
     background: var(--primary) !important;
     color: white !important;
     border-color: var(--primary) !important;
+}
+
+/* Tooltip on hover using title attribute styling natively or custom if needed */
+/* Native titles are used in HTML, but we style buttons slightly on hover */
+[title] {
+    cursor: help;
+}
+
+button[title] {
+    cursor: pointer;
+}
+
+/* ─── Math Keyboard ─── */
+.math-kb-toggle {
+    position: absolute;
+    bottom: 1.2rem;
+    right: 1.2rem;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    border: none;
+    font-size: 0.85rem;
+    font-weight: 700;
+    font-style: italic;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.5);
+    z-index: 50;
+    transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.math-kb-toggle:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 24px rgba(59, 130, 246, 0.7);
+}
+
+.math-kb-toggle.active {
+    background: var(--danger);
+    box-shadow: 0 4px 16px rgba(239, 68, 68, 0.5);
+}
+
+.math-keyboard {
+    position: absolute;
+    bottom: 4.5rem;
+    right: 1.2rem;
+    width: 260px;
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0;
+    z-index: 50;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    display: none;
+    animation: fadeIn 0.15s ease;
+    overflow: hidden;
+}
+
+.math-keyboard.open {
+    display: block;
+}
+
+.math-kb-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.math-kb-header span {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.math-kb-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+.math-kb-close:hover {
+    color: var(--danger);
+}
+
+.math-kb-section {
+    padding: 0.5rem 0.8rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.math-kb-section:last-child {
+    border-bottom: none;
+}
+
+.math-kb-section small {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.35rem;
+}
+
+.math-kb-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.math-kb-btn {
+    background: var(--bg-dark);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    padding: 0.35rem 0.55rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-family: monospace;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.math-kb-btn:hover {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+    transform: scale(1.05);
+}
+
+.math-kb-btn:active {
+    transform: scale(0.95);
 }
