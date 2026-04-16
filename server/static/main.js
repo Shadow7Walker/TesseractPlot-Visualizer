@@ -243,7 +243,7 @@ const serialPortInput = document.getElementById('serial-port');
 const usbSettings = document.getElementById('usb-settings');
 const wifiSettings = document.getElementById('wifi-settings');
 let isStreaming = false;
-let selectedMode = 'usb';
+let selectedMode = 'wifi';
 
 // Handle Tab Switching
 tabBtns.forEach(btn => {
