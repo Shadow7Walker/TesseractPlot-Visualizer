@@ -96,6 +96,9 @@ class PlotConfig(BaseModel):
     scale: float = 1.0
     grid_size: int = 8
     brightness: float = 0.2
+    omega: float = 1.0
+    phi: float = 0.0
+    k: float = 1.0
 
 # Global state
 current_voxels = np.zeros((CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 3), dtype=np.uint8)
@@ -111,6 +114,9 @@ current_origin = (0.0, 0.0, 0.0)
 current_scale = 1.0
 current_grid_size = 8
 current_brightness = 0.2
+current_omega = 1.0
+current_phi = 0.0
+current_k = 1.0
 
 # Default coordinate space (will be rebuilt dynamically based on origin/scale/grid_size)
 HW_CUBE_SIZE = 8  # Fixed hardware size
@@ -183,7 +189,7 @@ def numpy_safe_eval(eq_str, env):
 
 def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float, 
                    grid_size: int = 8, origin: tuple = (0.0, 0.0, 0.0), scale: float = 1.0, 
-                   brightness: float = 1.0):
+                   brightness: float = 1.0, omega: float = 1.0, phi: float = 0.0, k: float = 1.0):
     """
     Evaluates one or multiple mathematical equations.
     Supports explicit z=, y=, x= definitions, as well as implicit inequalities.
@@ -195,7 +201,9 @@ def calculate_plot(equations: list[str], hex_colors: list[str], current_t: float
         "x": X3, "y": Y3, "z": Z3,
         "sin": np.sin, "cos": np.cos, "tan": np.tan, "sqrt": np.sqrt,
         "exp": np.exp, "abs": np.abs, "pi": np.pi, "e": np.e, "t": current_t,
-        "clip": np.clip
+        "clip": np.clip,
+        "omega": omega, "phi": phi, "k": k, "atan2": np.arctan2,
+        "mod": np.fmod
     }
     
     parsed_colors = []
@@ -322,13 +330,16 @@ async def send_frame_to_esp32(voxels: np.ndarray):
 
 @app.post("/api/update_plot")
 async def update_plot(config: PlotConfig):
-    global current_equations, current_colors, current_origin, current_scale, current_grid_size, current_brightness
+    global current_equations, current_colors, current_origin, current_scale, current_grid_size, current_brightness, current_omega, current_phi, current_k
     current_equations = config.equations
     current_colors = config.colors
     current_origin = (config.origin_x, config.origin_y, config.origin_z)
     current_scale = config.scale
     current_grid_size = config.grid_size
     current_brightness = config.brightness
+    current_omega = config.omega
+    current_phi = config.phi
+    current_k = config.k
     return {"status": "success", "message": "Plot updated"}
 
 @app.post("/api/update_time")
@@ -392,7 +403,7 @@ async def stream_task():
         current_voxels = calculate_plot(
             current_equations, current_colors, t,
             grid_size=current_grid_size, origin=current_origin, scale=current_scale,
-            brightness=current_brightness
+            brightness=current_brightness, omega=current_omega, phi=current_phi, k=current_k
         )
         
         if stream_to_hardware:

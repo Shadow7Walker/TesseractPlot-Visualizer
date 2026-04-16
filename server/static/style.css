@@ -276,6 +276,23 @@ small {
     background: rgba(239, 68, 68, 0.1);
 }
 
+.btn-visibility {
+    color: var(--text-muted);
+    transition: opacity 0.15s;
+}
+
+.btn-visibility:hover {
+    color: var(--primary);
+}
+
+.equation-row.eq-hidden {
+    opacity: 0.35;
+}
+
+.equation-row.eq-hidden .eq-input {
+    text-decoration: line-through;
+}
+
 .divider {
     height: 1px;
     background-color: var(--border);

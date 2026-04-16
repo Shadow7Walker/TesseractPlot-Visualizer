@@ -283,7 +283,7 @@ const triggerAutoRender = () => {
     }
 };
 
-const addEquationRow = (defaultValue = "", overrideColor = null) => {
+let addEquationRow = (defaultValue = "", overrideColor = null) => {
     const row = document.createElement('div');
     row.className = 'equation-row';
     const color = overrideColor || eqColors[eqCount % eqColors.length];
@@ -292,6 +292,9 @@ const addEquationRow = (defaultValue = "", overrideColor = null) => {
     row.innerHTML = `
         <input type="color" class="eq-color" value="${color}" style="border: none; width: 24px; height: 28px; padding: 0; background: none; cursor: pointer; border-radius: 4px; margin-right: 0.5rem; flex-shrink: 0;" title="Change Graph Color">
         <textarea class="eq-input" placeholder="e.g. z = sin(x) or x**2+y**2 < 16" rows="1">${defaultValue}</textarea>
+        <button class="btn-visibility" title="Toggle equation visibility" style="flex-shrink: 0; background: none; border: none; cursor: pointer; padding: 2px 4px; opacity: 0.8;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
         <button class="btn-remove" title="Remove Field" style="flex-shrink: 0;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
@@ -303,6 +306,14 @@ const addEquationRow = (defaultValue = "", overrideColor = null) => {
             row.remove();
             triggerAutoRender();
         }
+    });
+    
+    // Visibility toggle logic
+    const visBtn = row.querySelector('.btn-visibility');
+    visBtn.addEventListener('click', () => {
+        row.classList.toggle('eq-hidden');
+        visBtn.style.opacity = row.classList.contains('eq-hidden') ? '0.3' : '0.8';
+        triggerAutoRender();
     });
     
     // Auto-expand logic for textareas
@@ -335,58 +346,121 @@ btnAddEq.addEventListener('click', () => {
     addEquationRow();
 });
 
-const btnHuygensDemo = document.getElementById('btn-huygens-demo');
-btnHuygensDemo.addEventListener('click', async () => {
+const selectExamples = document.getElementById('select-examples');
+
+// ─── Parameter Visibility Engine ─────────────────────
+const updateParameterVisibility = () => {
+    const allEqText = Array.from(container.querySelectorAll('.eq-input'))
+                           .map(ta => ta.value).join(' ');
+    const hasOmega = /\bomega\b/.test(allEqText);
+    const hasK = /\bk\b/.test(allEqText);
+    const hasPhi = /\bphi\b/.test(allEqText);
+
+    document.getElementById('row-omega').style.display = hasOmega ? 'flex' : 'none';
+    document.getElementById('row-k').style.display = hasK ? 'flex' : 'none';
+    document.getElementById('row-phi').style.display = hasPhi ? 'flex' : 'none';
+    document.getElementById('wave-params-group').style.display = (hasOmega || hasK || hasPhi) ? 'flex' : 'none';
+};
+
+// Wrap addEquationRow to also hook visibility checking on each new textarea
+const _baseAddRow = addEquationRow;
+addEquationRow = (defaultValue = "", overrideColor = null) => {
+    _baseAddRow(defaultValue, overrideColor);
+    // Get the last added row and hook visibility check
+    const rows = container.querySelectorAll('.equation-row');
+    const lastRow = rows[rows.length - 1];
+    if (lastRow) {
+        const ta = lastRow.querySelector('.eq-input');
+        ta.addEventListener('input', updateParameterVisibility);
+        // Also hook the remove button to re-check visibility
+        const removeBtn = lastRow.querySelector('.btn-remove');
+        const origHandler = removeBtn.onclick;
+        removeBtn.addEventListener('click', () => setTimeout(updateParameterVisibility, 10));
+    }
+    updateParameterVisibility();
+};
+
+// ─── Examples Dropdown ───────────────────────────────
+selectExamples.addEventListener('change', async (e) => {
+    const val = e.target.value;
+    if (!val) return;
+
     container.innerHTML = '';
     eqCount = 0;
-    
-    // Read current grid size for dynamic scaling
+
     const gs = freeModeToggle.checked ? (parseInt(gridSizeInput.value) || 8) : 8;
-    const C = ((gs + 1) / 2).toFixed(2);       // Center of grid
-    const E = (gs * 0.85).toFixed(2);           // Edge wavelet spawn point  
-    const D1 = (gs * 0.75).toFixed(2);          // Diagonal spawn (planar)
-    const D2 = (gs * 0.70).toFixed(2);          // Diagonal spawn (volumetric)
-    const T = (gs * 0.1).toFixed(2);            // Shell thickness (scales with grid)
-    const R0 = (gs * 0.35).toFixed(2);          // Primary wavefront freeze radius
-    const tDelay = "4.0";                       // Secondary wavefront delay
+    const C = ((gs + 1) / 2).toFixed(2);
+    const T = (gs * 0.1).toFixed(2);
 
-    const huygensEqs = [
-        // Phase 1: Primary wavefront — expands from center, freezes at R0
-        { c: "#ffffff", e: `abs((x-${C})**2 + (y-${C})**2 + (z-${C})**2 - clip(t, 0, ${R0})**2) < ${T}` },
-        
-        // Phase 2: Axis wavelets (vivid RGB) — spawn on the frozen primary shell surface
-        { c: "#ff2020", e: `abs((x-${E})**2 + (y-${C})**2 + (z-${C})**2 - clip(t-${tDelay}, 0, 100)**2) < ${T} and (t > ${tDelay})` },
-        { c: "#20ff40", e: `abs((x-${C})**2 + (y-${E})**2 + (z-${C})**2 - clip(t-${tDelay}, 0, 100)**2) < ${T} and (t > ${tDelay})` },
-        { c: "#4080ff", e: `abs((x-${C})**2 + (y-${C})**2 + (z-${E})**2 - clip(t-${tDelay}, 0, 100)**2) < ${T} and (t > ${tDelay})` },
+    if (val === 'huygens') {
+        const E = (gs * 0.85).toFixed(2);
+        const D1 = (gs * 0.75).toFixed(2);
+        const D2 = (gs * 0.70).toFixed(2);
+        const R0 = (gs * 0.35).toFixed(2);
+        const tD = "4.0";
+        [
+            { c: "#ffffff", e: `abs((x-${C})**2 + (y-${C})**2 + (z-${C})**2 - clip(t*omega, 0, ${R0})**2) < ${T}` },
+            { c: "#ff2020", e: `abs((x-${E})**2 + (y-${C})**2 + (z-${C})**2 - clip(t*omega-${tD}, 0, 100)**2) < ${T} and (t*omega > ${tD})` },
+            { c: "#20ff40", e: `abs((x-${C})**2 + (y-${E})**2 + (z-${C})**2 - clip(t*omega-${tD}, 0, 100)**2) < ${T} and (t*omega > ${tD})` },
+            { c: "#4080ff", e: `abs((x-${C})**2 + (y-${C})**2 + (z-${E})**2 - clip(t*omega-${tD}, 0, 100)**2) < ${T} and (t*omega > ${tD})` },
+            { c: "#ffe030", e: `abs((x-${D1})**2 + (y-${D1})**2 + (z-${C})**2 - clip(t*omega-${tD}, 0, 100)**2) < ${T} and (t*omega > ${tD})` },
+            { c: "#30ffe0", e: `abs((x-${C})**2 + (y-${D1})**2 + (z-${D1})**2 - clip(t*omega-${tD}, 0, 100)**2) < ${T} and (t*omega > ${tD})` },
+            { c: "#ff30e0", e: `abs((x-${D1})**2 + (y-${C})**2 + (z-${D1})**2 - clip(t*omega-${tD}, 0, 100)**2) < ${T} and (t*omega > ${tD})` },
+            { c: "#ff8800", e: `abs((x-${D2})**2 + (y-${D2})**2 + (z-${D2})**2 - clip(t*omega-${tD}, 0, 100)**2) < ${T} and (t*omega > ${tD})` },
+            { c: "#00ffff", e: `abs((x-${C})**2 + (y-${C})**2 + (z-${C})**2 - clip(${R0} + (t*omega-${tD}), 0, 100)**2) < ${T} and (t*omega > ${tD})` }
+        ].forEach(conf => addEquationRow(conf.e, conf.c));
+    } else if (val === 'constructive') {
+        const off = (gs * 0.25).toFixed(2);
+        // Wave A (Red) — radiates from left source
+        addEquationRow(`z = ${C} + 1.5 * sin(k * sqrt((x-${C}-${off})**2 + (y-${C})**2) - omega*t)`, "#ff3030");
+        // Wave B (Blue) — radiates from right source, same phase
+        addEquationRow(`z = ${C} + 1.5 * sin(k * sqrt((x-${C}+${off})**2 + (y-${C})**2) - omega*t)`, "#3060ff");
+        // Superposition (Violet) — constructive sum, doubled amplitude
+        addEquationRow(`z = ${C} + 1.5 * (sin(k * sqrt((x-${C}-${off})**2 + (y-${C})**2) - omega*t) + sin(k * sqrt((x-${C}+${off})**2 + (y-${C})**2) - omega*t))`, "#b030ff");
+    } else if (val === 'destructive') {
+        const off = (gs * 0.25).toFixed(2);
+        // Wave A (Red) — radiates from left source
+        addEquationRow(`z = ${C} + 1.5 * sin(k * sqrt((x-${C}-${off})**2 + (y-${C})**2) - omega*t)`, "#ff3030");
+        // Wave B (Blue) — radiates from right source, π phase shift
+        addEquationRow(`z = ${C} + 1.5 * sin(k * sqrt((x-${C}+${off})**2 + (y-${C})**2) - omega*t + phi)`, "#3060ff");
+        // Superposition (Grey) — destructive cancellation
+        addEquationRow(`z = ${C} + 1.5 * (sin(k * sqrt((x-${C}-${off})**2 + (y-${C})**2) - omega*t) + sin(k * sqrt((x-${C}+${off})**2 + (y-${C})**2) - omega*t + phi))`, "#888888");
+        document.getElementById('phi-slider').value = 3.14;
+        document.getElementById('phi-label').innerText = '3.14';
+    } else if (val === 'standing') {
+        addEquationRow(`z = ${C} + 3 * sin(k * (x-${C})) * cos(omega * t)`, "#8b5cf6");
+    } else if (val === 'ripple') {
+        addEquationRow(`z = ${C} + 3 * sin(k * sqrt((x-${C})**2 + (y-${C})**2) - omega*t + phi)`, "#10b981");
+    } else if (val === 'sphere') {
+        addEquationRow(`abs((x-${C})**2 + (y-${C})**2 + (z-${C})**2 - (omega*t % ${(gs*0.45).toFixed(1)})**2) < ${T}`, "#00ffff");
+    }
 
-        // Phase 2: Planar diagonal wavelets (vivid Yellow, Cyan, Magenta)
-        { c: "#ffe030", e: `abs((x-${D1})**2 + (y-${D1})**2 + (z-${C})**2 - clip(t-${tDelay}, 0, 100)**2) < ${T} and (t > ${tDelay})` },
-        { c: "#30ffe0", e: `abs((x-${C})**2 + (y-${D1})**2 + (z-${D1})**2 - clip(t-${tDelay}, 0, 100)**2) < ${T} and (t > ${tDelay})` },
-        { c: "#ff30e0", e: `abs((x-${D1})**2 + (y-${C})**2 + (z-${D1})**2 - clip(t-${tDelay}, 0, 100)**2) < ${T} and (t > ${tDelay})` },
+    updateParameterVisibility();
 
-        // Phase 2: Volumetric diagonal wavelet (orange-gold)
-        { c: "#ff8800", e: `abs((x-${D2})**2 + (y-${D2})**2 + (z-${D2})**2 - clip(t-${tDelay}, 0, 100)**2) < ${T} and (t > ${tDelay})` },
-
-        // Phase 2: Expanding envelope — continues from where the primary froze
-        { c: "#00ffff", e: `abs((x-${C})**2 + (y-${C})**2 + (z-${C})**2 - clip(${R0} + (t-${tDelay}), 0, 100)**2) < ${T} and (t > ${tDelay})` }
-    ];
-    
-    huygensEqs.forEach(conf => addEquationRow(conf.e, conf.c));
-    
-    // Auto-reset time to 0 and resume play
     isPlaying = true;
     btnPlayPause.innerText = "Pause";
     btnPlayPause.classList.toggle('primary', false);
     btnPlayPause.classList.toggle('secondary', true);
-    
+
     await fetch('/api/update_time', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ t_val: 0.0, is_playing: true, playback_speed: 0.5 })
     });
-    
-    // Submit arrays natively
     btnUpdate.click();
+    selectExamples.value = ""; // Reset dropdown to placeholder
+});
+
+// ─── Wave Parameter Slider Listeners ─────────────────
+['omega', 'k', 'phi'].forEach(p => {
+    const slider = document.getElementById(`${p}-slider`);
+    const label = document.getElementById(`${p}-label`);
+    if (slider && label) {
+        slider.addEventListener('input', (e) => {
+            label.innerText = parseFloat(e.target.value).toFixed(p === 'phi' ? 2 : 1);
+            triggerAutoRender();
+        });
+    }
 });
 
 // ─── Coordinate Space Controls ───────────────────────
@@ -557,6 +631,7 @@ btnUpdate.addEventListener('click', async () => {
     const colorArray = [];
     
     rows.forEach(row => {
+        if (row.classList.contains('eq-hidden')) return; // Skip hidden equations
         const inputVal = row.querySelector('.eq-input').value;
         if (inputVal.trim() !== "") {
             eqArray.push(inputVal);
@@ -587,7 +662,10 @@ btnUpdate.addEventListener('click', async () => {
                 origin_z: oz,
                 scale: sf,
                 grid_size: gs,
-                brightness: brightVal
+                brightness: brightVal,
+                omega: parseFloat(document.getElementById('omega-slider').value) || 1.0,
+                phi: parseFloat(document.getElementById('phi-slider').value) || 0.0,
+                k: parseFloat(document.getElementById('k-slider').value) || 1.0
             })
         });
         cubeGroup.rotation.y = 0; // Reset rotation so user can see front view

@@ -30,11 +30,39 @@
                     <button id="btn-add-eq" class="btn secondary btn-small" style="flex: 1;" title="Add another equation to plot simultaneously">
                         + Add Equation
                     </button>
-                    <button id="btn-huygens-demo" class="btn primary btn-small" style="flex: 1;" title="Load a pre-built Huygens' wavelet animation with expanding spherical wavefronts">
-                        Load Huygens'
-                    </button>
+                    <select id="select-examples" class="coord-input" style="flex: 1; cursor: pointer; padding: 0.4rem;" title="Load a built-in mathematical example">
+                        <option value="">Built-in Examples</option>
+                        <option value="huygens">Huygens Wavelets</option>
+                        <option value="constructive">Constructive Interference</option>
+                        <option value="destructive">Destructive Interference</option>
+                        <option value="standing">3D Standing Wave</option>
+                        <option value="ripple">Radial Ripple</option>
+                        <option value="sphere">Expanding Sphere</option>
+                    </select>
                 </div>
-                <small>Valid variables: x, y, z, t, sin, cos, sqrt, pi<br>Supports Inequalities (<, >) and Logic (and, or)</small>
+                <small>Variables: x, y, z, t, omega, k, phi, sin, cos, sqrt, pi<br>Supports Inequalities (&lt;, &gt;) and Logic (and, or)</small>
+            </div>
+
+            <div class="control-group" id="wave-params-group" style="display: none;">
+                <label title="Dynamic wave parameters — automatically appear when omega, k, or phi are used in your equations">Wave Parameters</label>
+                
+                <div class="coord-row" id="row-omega" style="display: none;">
+                    <span class="coord-label">ω</span>
+                    <span id="omega-label" style="font-family: monospace; font-size: 0.85rem; min-width: 30px; text-align: center;">1.0</span>
+                    <input type="range" id="omega-slider" min="0.1" max="10" step="0.1" value="1" style="flex: 1;" title="Angular Frequency (omega) — controls wave speed">
+                </div>
+
+                <div class="coord-row" id="row-k" style="display: none;">
+                    <span class="coord-label">k</span>
+                    <span id="k-label" style="font-family: monospace; font-size: 0.85rem; min-width: 30px; text-align: center;">1.0</span>
+                    <input type="range" id="k-slider" min="0.1" max="5" step="0.1" value="1" style="flex: 1;" title="Wave Number (k) — controls spatial frequency">
+                </div>
+
+                <div class="coord-row" id="row-phi" style="display: none;">
+                    <span class="coord-label">φ</span>
+                    <span id="phi-label" style="font-family: monospace; font-size: 0.85rem; min-width: 30px; text-align: center;">0.00</span>
+                    <input type="range" id="phi-slider" min="0" max="6.28" step="0.01" value="0" style="flex: 1;" title="Phase Offset (phi) — controls wave phase shift">
+                </div>
             </div>
 
             <div class="control-group">
@@ -201,6 +229,7 @@
                     <small>Utility</small>
                     <div class="math-kb-grid">
                         <button class="math-kb-btn" data-insert="clip(, 0, 100)">clip</button>
+                        <button class="math-kb-btn" data-insert="mod(, )">mod</button>
                         <button class="math-kb-btn" data-insert="(x-)**2 + (y-)**2 + (z-)**2">r²</button>
                     </div>
                 </div>
