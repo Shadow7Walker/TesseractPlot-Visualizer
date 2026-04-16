@@ -81,6 +81,53 @@ const buildVoxelGrid = (size) => {
     const edges = new THREE.EdgesGeometry(boxGeo);
     wireframeLine = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x334155 }));
     cubeGroup.add(wireframeLine);
+    
+    // ─── Axis Lines & Labels ─────────────────────────
+    const axisLen = boxSize + 1.5;  // Extend slightly beyond the box
+    const axisOrigin = -0.3;        // Start slightly before the box corner
+    
+    const makeAxisLine = (color, start, end) => {
+        const geo = new THREE.BufferGeometry().setFromPoints([start, end]);
+        const mat = new THREE.LineBasicMaterial({ color, linewidth: 2 });
+        return new THREE.Line(geo, mat);
+    };
+    
+    const makeLabel = (text, color, position) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        ctx.font = 'bold 48px monospace';
+        ctx.fillStyle = color;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, 32, 32);
+        
+        const texture = new THREE.CanvasTexture(canvas);
+        const mat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+        const sprite = new THREE.Sprite(mat);
+        sprite.position.copy(position);
+        sprite.scale.set(1.2, 1.2, 1);
+        return sprite;
+    };
+    
+    // X axis — Red
+    cubeGroup.add(makeAxisLine(0xff4444, 
+        new THREE.Vector3(axisOrigin, axisOrigin, axisOrigin), 
+        new THREE.Vector3(axisLen, axisOrigin, axisOrigin)));
+    cubeGroup.add(makeLabel('X', '#ff4444', new THREE.Vector3(axisLen + 0.5, axisOrigin, axisOrigin)));
+    
+    // Y axis — Green
+    cubeGroup.add(makeAxisLine(0x44ff44, 
+        new THREE.Vector3(axisOrigin, axisOrigin, axisOrigin), 
+        new THREE.Vector3(axisOrigin, axisLen, axisOrigin)));
+    cubeGroup.add(makeLabel('Y', '#44ff44', new THREE.Vector3(axisOrigin, axisLen + 0.5, axisOrigin)));
+    
+    // Z axis — Blue
+    cubeGroup.add(makeAxisLine(0x4488ff, 
+        new THREE.Vector3(axisOrigin, axisOrigin, axisOrigin), 
+        new THREE.Vector3(axisOrigin, axisOrigin, axisLen)));
+    cubeGroup.add(makeLabel('Z', '#4488ff', new THREE.Vector3(axisOrigin, axisOrigin, axisLen + 0.5)));
 };
 
 buildVoxelGrid(CUBE_SIZE);
