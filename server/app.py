@@ -7,6 +7,18 @@ import socket
 import asyncio
 from contextlib import asynccontextmanager
 import ast
+import os
+import sys
+
+def get_resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -21,13 +33,13 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 # Mount the static directory for the Web UI
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=get_resource_path("static")), name="static")
 
 from fastapi.responses import FileResponse
 
 @app.get("/logo.png")
 async def serve_logo():
-    return FileResponse("logo.png", media_type="image/png")
+    return FileResponse(get_resource_path("logo.png"), media_type="image/png")
 
 # ESP32 Connection State
 active_serial = None
