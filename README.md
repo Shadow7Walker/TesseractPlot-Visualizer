@@ -79,3 +79,8 @@ The firmware is optimized for the following ESP32 pins to allow maximum space be
 5. **Link Hardware**: 
    - **USB**: Select the **USB** tab, enter your COM port, and click **Start Streaming**.
    - **WiFi**: Select the **WiFi** tab, enter **`192.168.4.1`**, and click **Start Streaming**.
+
+## 👌 For End-USERs
+
+1. You can download the `TesseractStudio.exe` directly without worrying about any other files or dependencies and run it.
+2. Open the following link to download it `https://github.com/Shadow7Walker/TesseractPlot-Visualizer/releases/tag/Beta`
