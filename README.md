@@ -2,6 +2,8 @@
 
 Tesseract Plot Studio is a high-performance 3D visualization suite designed to control an 8x8x8 pseudo-holographic LED matrix. It features a real-time "Digital Twin" simulator and high-speed streaming capabilities for physical hardware.
 
+👉 **[Download the Latest Beta Release Here](https://github.com/Shadow7Walker/TesseractPlot-Visualizer/releases/tag/Beta)**
+
 ## 🌟 Core Features
 
 - **Dual-Mode Streaming**: Seamlessly switch between **USB-C Serial (921,600 Baud)** for zero-latency hardwired control and **WiFi UDP** for wireless freedom.
@@ -83,4 +85,4 @@ The firmware is optimized for the following ESP32 pins to allow maximum space be
 ## 👌 For End-USERs
 
 1. You can download the `TesseractStudio.exe` directly without worrying about any other files or dependencies and run it.
-2. Open the following link to download it `https://github.com/Shadow7Walker/TesseractPlot-Visualizer/releases/tag/Beta`
+2. Open the following link to download it 👉 **[Download the Latest Beta Release Here](https://github.com/Shadow7Walker/TesseractPlot-Visualizer/releases/tag/Beta)**
